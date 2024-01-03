@@ -42,6 +42,19 @@ bool Kuro::read_token_from_uart(HardwareSerial *use_serial, uint8_t *token, int 
   return false;
 }
 
+bool Kuro::void_frag(HardwareSerial *use_serial, bool *do_void, unsigned long *last_read, unsigned long void_duration) {
+  if(!*do_void) return true;
+  if(millis() - *last_read >= void_duration) {
+    *do_void = false;
+    return true;
+  } 
+  if(use_serial->available()) {
+    use_serial->read(); //void fragment
+    *last_read = millis();
+  }
+  return false;
+}
+
 int Kuro::hex_to_int(uint8_t a) {
   if(a >= '0' && a <= '9'){
     return a - 48;

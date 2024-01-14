@@ -67,7 +67,10 @@ class KuroGUI
     bool b_cache1;
     void create_state(uint8_t state);
     uint8_t* icon_buffer;
+    uint8_t* fetch_icon(uint8_t icon);
     void create_icon(uint8_t icon, uint8_t address);
+    void destroy_icon(uint8_t icon);
+    bool negate_icon(uint8_t icon);
     void clear_icon_buffer();
     bool write_icon(uint8_t icon, uint8_t row, uint8_t column);
 };

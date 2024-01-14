@@ -118,6 +118,8 @@ void KuroGUI::create_state(uint8_t state){
       write_icon(ICON_WAWES, 7, 0);
       write_icon(ICON_EJECT, 8, 0);
       write_icon(ICON_CLOCKWISE, 9, 0);
+      delay(1000);
+      negate_icon(ICON_HOME);
       break;
     }
   }
@@ -147,45 +149,72 @@ void KuroGUI::clear_icon_buffer() {
 
 void KuroGUI::create_icon(uint8_t icon, uint8_t address) {
   icon_buffer[address] = icon;
+  _lcd->createChar(address, fetch_icon(icon));
+}
+
+void KuroGUI::destroy_icon(uint8_t icon) {
+  for(uint8_t i = 0; i < 8; i++) {
+    if(icon_buffer[i] == icon) {
+      icon_buffer[i] = NULL;
+      return;
+    }
+  }
+}
+
+bool KuroGUI::negate_icon(uint8_t icon) {
+  for(uint8_t i = 0; i < 8; i++) {
+    if(icon_buffer[i] == icon) {
+      uint8_t* icon_data = fetch_icon(icon);
+      for(uint8_t i_data = 0; i_data < 8; i_data++) {
+        icon_data[i_data] = ~icon_data[i_data];
+      }
+      _lcd->createChar(i, icon_data);
+      return true;
+    }
+  }
+  return false;
+}
+
+uint8_t* KuroGUI::fetch_icon(uint8_t icon) {
   switch(icon) {
     case ICON_HOME: {
-      _lcd->createChar(address, new uint8_t[8]{ B00000, B00100, B01110, B11111, B01010, B01110, B00000, B00000 });
+      return new uint8_t[8]{ B00000, B00100, B01110, B11111, B01010, B01110, B00000, B00000 };
       break;
     }
     case ICON_LEFT: {
-      _lcd->createChar(address, new uint8_t[8]{ B00000, B00010, B00110, B01110, B00110, B00010, B00000, B00000 });
+      return new uint8_t[8]{ B00000, B00010, B00110, B01110, B00110, B00010, B00000, B00000 };
       break;
     }
     case ICON_RIGHT: {
-      _lcd->createChar(address, new uint8_t[8]{ B00000, B01000, B01100, B01110, B01100, B01000, B00000, B00000 });
+      return new uint8_t[8]{ B00000, B01000, B01100, B01110, B01100, B01000, B00000, B00000 };
       break;
     }
     case ICON_CHECK: {
-      _lcd->createChar(address, new uint8_t[8]{ B00000, B00000, B00001, B00010, B10100, B01000, B00000, B00000 });
+      return new uint8_t[8]{ B00000, B00000, B00001, B00010, B10100, B01000, B00000, B00000 };
       break;
     }
     case ICON_CROSS: {
-      _lcd->createChar(address, new uint8_t[8]{ B00000, B00000, B01010, B00100, B01010, B00000, B00000, B00000 });
+      return new uint8_t[8]{ B00000, B00000, B01010, B00100, B01010, B00000, B00000, B00000 };
       break;
     }
     case ICON_WRITE: {
-      _lcd->createChar(address, new uint8_t[8]{ B00001, B00011, B00111, B01110, B10100, B11000, B00111, B00000 });
+      return new uint8_t[8]{ B00001, B00011, B00111, B01110, B10100, B11000, B00111, B00000 };
       break;
     }
     case ICON_SPEAKER: {
-      _lcd->createChar(address, new uint8_t[8]{ B00001, B00011, B01111, B01111, B01111, B00011, B00001, B00000 });
+      return new uint8_t[8]{ B00001, B00011, B01111, B01111, B01111, B00011, B00001, B00000 };
       break;
     }
     case ICON_WAWES: {
-      _lcd->createChar(address, new uint8_t[8]{ B01000, B00100, B10010, B01010, B10010, B00100, B01000, B00000 });
+      return new uint8_t[8]{ B01000, B00100, B10010, B01010, B10010, B00100, B01000, B00000 };
       break;
     }
     case ICON_EJECT: {
-      _lcd->createChar(address, new uint8_t[8]{ B00000, B00100, B01110, B11111, B00000, B11111, B00000, B00000 });
+      return new uint8_t[8]{ B00000, B00100, B01110, B11111, B00000, B11111, B00000, B00000 };
       break;
     }
     case ICON_CLOCKWISE: {
-      _lcd->createChar(address, new uint8_t[8]{ B00100, B00110, B11111, B10110, B10100, B10000, B11110, B00000 });
+      return new uint8_t[8]{ B00100, B00110, B11111, B10110, B10100, B10000, B11110, B00000 };
       break;
     }
   }

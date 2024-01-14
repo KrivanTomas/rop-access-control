@@ -15,15 +15,18 @@ KuroGUI::KuroGUI() {
   return;
 }
 
-void KuroGUI::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc){
+void KuroGUI::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, uint8_t buzzer_pin){
+  _buzzer_pin = buzzer_pin;
   _lcd = lcd;
   _rtc = rtc;
+  icon_buffer = new uint8_t[8]{NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
   create_state(ui_state);
+  
 }
 
 void KuroGUI::update(){
   switch(ui_state){
-    case HOME_SCREEN:
+    case HOME_SCREEN: {
       if(millis() - ui_timer1 > 1000){
         ui_timer1 = millis();
         b_cache1 = !b_cache1;
@@ -61,20 +64,27 @@ void KuroGUI::update(){
         }
       }
       break;
+    }
   }
 }
 
 void KuroGUI::handle_input(uint8_t ui_input){
   switch(ui_input){
-    default:
+    case INPUT_OK: {
+      if(ui_state == HOME_SCREEN) create_state(MENU_SELECT);
+      break;
+    }
+    default: {
       Serial.printf("WARN: Unhandled/Unknown input: %u\n", ui_input);
       break;
+    }
   }
 }
 
 void KuroGUI::create_state(uint8_t state){
+  clear_icon_buffer();
   switch(state){
-    case HOME_SCREEN:
+    case HOME_SCREEN: {
       ui_state = HOME_SCREEN;
       b_cache1 = true;
       _lcd->clear();
@@ -90,5 +100,93 @@ void KuroGUI::create_state(uint8_t state){
       u_cache5 = now.minute();
       ui_timer1 = millis();
       break;
+    }
+    case MENU_SELECT: {
+      ui_state = MENU_SELECT;
+      _lcd->clear();
+      _lcd->backlight();
+      //_lcd->createChar(ICON_HOME, new uint8_t[8]{ B00000, B00100, B01110, B11111, B01010, B01110, B00000, B00000 });
+      //_lcd->write(ICON_HOME);
+
+      write_icon(ICON_HOME, 0, 0);
+      write_icon(ICON_LEFT, 1, 0);
+      write_icon(ICON_RIGHT, 2, 0);
+      write_icon(ICON_CHECK, 3, 0);
+      write_icon(ICON_CROSS, 4, 0);
+      write_icon(ICON_WRITE, 5, 0);
+      write_icon(ICON_SPEAKER, 6, 0);
+      write_icon(ICON_WAWES, 7, 0);
+      write_icon(ICON_EJECT, 8, 0);
+      write_icon(ICON_CLOCKWISE, 9, 0);
+      break;
+    }
+  }
+}
+
+bool KuroGUI::write_icon(uint8_t icon, uint8_t row, uint8_t column) {
+  for(uint8_t i = 0; i < 8; i++) {
+    if(icon_buffer[i] == icon) {
+      _lcd->write(i);
+      return true;
+    }
+    if(icon_buffer[i] == NULL) {
+      create_icon(icon, i);
+      _lcd->setCursor(row, column); // https://forum.arduino.cc/t/is-it-possible-to-modify-my-custom-lcd-characters-in-the-main-loop/394713/3
+      _lcd->write(i);
+      return true;
+    }
+  }
+  return false;
+}
+
+void KuroGUI::clear_icon_buffer() {
+  for(uint8_t i = 0; i < 8; i++) {
+    icon_buffer[i] = NULL;
+  }
+}
+
+void KuroGUI::create_icon(uint8_t icon, uint8_t address) {
+  icon_buffer[address] = icon;
+  switch(icon) {
+    case ICON_HOME: {
+      _lcd->createChar(address, new uint8_t[8]{ B00000, B00100, B01110, B11111, B01010, B01110, B00000, B00000 });
+      break;
+    }
+    case ICON_LEFT: {
+      _lcd->createChar(address, new uint8_t[8]{ B00000, B00010, B00110, B01110, B00110, B00010, B00000, B00000 });
+      break;
+    }
+    case ICON_RIGHT: {
+      _lcd->createChar(address, new uint8_t[8]{ B00000, B01000, B01100, B01110, B01100, B01000, B00000, B00000 });
+      break;
+    }
+    case ICON_CHECK: {
+      _lcd->createChar(address, new uint8_t[8]{ B00000, B00000, B00001, B00010, B10100, B01000, B00000, B00000 });
+      break;
+    }
+    case ICON_CROSS: {
+      _lcd->createChar(address, new uint8_t[8]{ B00000, B00000, B01010, B00100, B01010, B00000, B00000, B00000 });
+      break;
+    }
+    case ICON_WRITE: {
+      _lcd->createChar(address, new uint8_t[8]{ B00001, B00011, B00111, B01110, B10100, B11000, B00111, B00000 });
+      break;
+    }
+    case ICON_SPEAKER: {
+      _lcd->createChar(address, new uint8_t[8]{ B00001, B00011, B01111, B01111, B01111, B00011, B00001, B00000 });
+      break;
+    }
+    case ICON_WAWES: {
+      _lcd->createChar(address, new uint8_t[8]{ B01000, B00100, B10010, B01010, B10010, B00100, B01000, B00000 });
+      break;
+    }
+    case ICON_EJECT: {
+      _lcd->createChar(address, new uint8_t[8]{ B00000, B00100, B01110, B11111, B00000, B11111, B00000, B00000 });
+      break;
+    }
+    case ICON_CLOCKWISE: {
+      _lcd->createChar(address, new uint8_t[8]{ B00100, B00110, B11111, B10110, B10100, B10000, B11110, B00000 });
+      break;
+    }
   }
 }

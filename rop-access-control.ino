@@ -25,20 +25,13 @@
 #define BTN_UP 26
 #define BTN_DOWN 27
 
-
 #define RFID_UART_PORT 2
 
 #define SDCARD_CS 5
 
-
 //rfid
 #define RFID_TOKEN_LENGTH 12
 #define VOID_DURATION 500
-
-#define HOME_SCREEN 0x0
-#define MENU_SELECT 0x1
-#define TOAST       0x2
-#define TEXT_EDIT   0x3
 
 //common libraries
 #include "SPI.h"
@@ -81,16 +74,12 @@ void setup() {
 
   Wire.begin();
   rtc.begin();
-  gui.begin(&lcd, &rtc);
-
+  gui.begin(&lcd, &rtc, BUZZER_PIN);
+  
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(BTN_OK, INPUT_PULLUP);
   pinMode(BTN_UP, INPUT_PULLUP);
   pinMode(BTN_DOWN, INPUT_PULLUP);
-
-  //lcd.backlight();
-  //lcd.print("RFID reader");
-  //home_screen();
 
   rfid_last_read = millis();
   rfid_void_frag = true;
@@ -142,10 +131,6 @@ void setup() {
 }
 
 
-bool on_input = false;
-char current_letter = ' ';
-int cursor_pos = 0;
-
 bool ok_pressed = false;
 bool up_pressed = false;
 bool down_pressed = false;
@@ -154,7 +139,6 @@ void loop() {
   if(!ok_pressed && digitalRead(BTN_OK) == LOW){
     ok_pressed = true;
     gui.handle_input(INPUT_OK);
-    tone(BUZZER_PIN, 500, 30);
   }
   else if (digitalRead(BTN_OK) == HIGH && ok_pressed){
     ok_pressed = false;
@@ -162,7 +146,6 @@ void loop() {
   if(!up_pressed && digitalRead(BTN_UP) == LOW){
     up_pressed = true;
     gui.handle_input(INPUT_UP);
-    tone(BUZZER_PIN, 600, 30);
   }
   else if (digitalRead(BTN_UP) == HIGH && up_pressed){
     up_pressed = false;
@@ -170,7 +153,6 @@ void loop() {
   if(!down_pressed && digitalRead(BTN_DOWN) == LOW){
     down_pressed = true;
     gui.handle_input(INPUT_DOWN);
-    tone(BUZZER_PIN, 200, 30);
   }
   else if (digitalRead(BTN_DOWN) == HIGH && down_pressed){
     down_pressed = false;
@@ -188,8 +170,6 @@ void loop() {
     tone(BUZZER_PIN, 1000, 50);
     rfid_last_read = millis();
     rfid_void_frag = true;
-    //no_text_input();
-    on_input = false;
   }
 }
 

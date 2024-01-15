@@ -11,6 +11,8 @@
 #include "KuroGUI.h"
 #include "RTClib.h"
 
+#define MENU_ITEMS_COUNT 6
+
 KuroGUI::KuroGUI() {
   return;
 }
@@ -20,8 +22,60 @@ void KuroGUI::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, uint8_t buzzer_pin)
   _lcd = lcd;
   _rtc = rtc;
   icon_buffer = new uint8_t[8]{NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
-  create_state(ui_state);
-  
+  create_state(HOME_SCREEN);
+  play_sound(SOUND_COMPLETE);
+}
+
+void KuroGUI::create_state(uint8_t state) {
+  clear_icon_buffer();
+  ui_state = state;
+  switch(state){
+    case NO_MENU: {
+      _lcd->clear();
+      _lcd->backlight();
+      _lcd->print("NO STATE SET");
+      _lcd->setCursor(0,1);
+      _lcd->print("DEF TO HOME ..");
+      play_sound(SOUND_ERROR);
+      delay(1000);
+      create_state(HOME_SCREEN);
+    }
+    case HOME_SCREEN: {
+      b_cache1 = true;
+      _lcd->clear();
+      _lcd->backlight();
+      DateTime now = _rtc->now();
+      _lcd->printf("On Standby %2u:%02u", now.hour(), now.minute());
+      _lcd->setCursor(0, 1);
+      _lcd->printf("%u\.%u\.%u", now.day(), now.month(), now.year());
+      u_cache1 = now.year();
+      u_cache2 = now.month();
+      u_cache3 = now.day();
+      u_cache4 = now.hour();
+      u_cache5 = now.minute();
+      ui_timer1 = millis();
+      break;
+    }
+    case MENU_SELECT: {
+      _lcd->clear();
+      _lcd->backlight();
+
+      uint8_t icon;
+      uint8_t menu;
+      char* desc;
+      for(uint8_t i = 0; i < MENU_ITEMS_COUNT; i++){
+        get_menu_item(i, &icon, &desc, &menu);
+        write_icon(icon, i * 2, 0);
+      }
+      
+      u_cache1 = 0; //menu index
+      get_menu_item(u_cache1, &icon, &desc, &menu);
+      negate_icon(icon);
+      _lcd->setCursor(0, 1);
+      _lcd->print(desc);
+      break;
+    }
+  }
 }
 
 void KuroGUI::update(){
@@ -68,72 +122,96 @@ void KuroGUI::update(){
   }
 }
 
-void KuroGUI::handle_input(uint8_t ui_input){
-  switch(ui_input){
-    case INPUT_OK: {
-      if(ui_state == HOME_SCREEN) create_state(MENU_SELECT);
-      break;
-    }
-    default: {
-      Serial.printf("WARN: Unhandled/Unknown input: %u\n", ui_input);
-      break;
-    }
-  }
-}
-
-void KuroGUI::create_state(uint8_t state){
-  clear_icon_buffer();
-  switch(state){
+void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
+  switch(ui_state){
     case HOME_SCREEN: {
-      ui_state = HOME_SCREEN;
-      b_cache1 = true;
-      _lcd->clear();
-      _lcd->backlight();
-      DateTime now = _rtc->now();
-      _lcd->printf("On Standby %2u:%02u", now.hour(), now.minute());
-      _lcd->setCursor(0, 1);
-      _lcd->printf("%u\.%u\.%u", now.day(), now.month(), now.year());
-      u_cache1 = now.year();
-      u_cache2 = now.month();
-      u_cache3 = now.day();
-      u_cache4 = now.hour();
-      u_cache5 = now.minute();
-      ui_timer1 = millis();
+      if (input_state == BEFORE_INPUT) return;
+      create_state(MENU_SELECT);
       break;
     }
     case MENU_SELECT: {
-      ui_state = MENU_SELECT;
-      _lcd->clear();
-      _lcd->backlight();
-      //_lcd->createChar(ICON_HOME, new uint8_t[8]{ B00000, B00100, B01110, B11111, B01010, B01110, B00000, B00000 });
-      //_lcd->write(ICON_HOME);
-
-      write_icon(ICON_HOME, 0, 0);
-      write_icon(ICON_LEFT, 1, 0);
-      write_icon(ICON_RIGHT, 2, 0);
-      write_icon(ICON_CHECK, 3, 0);
-      write_icon(ICON_CROSS, 4, 0);
-      write_icon(ICON_WRITE, 5, 0);
-      write_icon(ICON_SPEAKER, 6, 0);
-      write_icon(ICON_WAWES, 7, 0);
-      write_icon(ICON_EJECT, 8, 0);
-      write_icon(ICON_CLOCKWISE, 9, 0);
-      delay(1000);
-      negate_icon(ICON_HOME);
+      if (input_state == BEFORE_INPUT) return;
+      uint8_t icon;
+      uint8_t menu;
+      char* desc;
+      get_menu_item(u_cache1, &icon, &desc, &menu);
+      if(input == INPUT_OK){
+        create_state(menu);
+        return;
+      }
+      restore_icon(icon);
+      if(input == INPUT_UP) u_cache1 = u_cache1 == 0 ? MENU_ITEMS_COUNT - 1 : u_cache1 - 1;
+      if(input == INPUT_DOWN) u_cache1 = u_cache1 == MENU_ITEMS_COUNT - 1 ? 0 : u_cache1 + 1;
+      get_menu_item(u_cache1, &icon, &desc, &menu);
+      negate_icon(icon);
+      _lcd->setCursor(0, 1);
+      _lcd->print(desc);
       break;
     }
   }
 }
 
-bool KuroGUI::write_icon(uint8_t icon, uint8_t row, uint8_t column) {
+
+
+bool KuroGUI::get_menu_item(uint8_t menu_index, uint8_t* _icon, char** _desc, uint8_t* _menu){
+  switch(menu_index){
+    case 0: {
+      *_icon = ICON_HOME;
+      *_desc = "Home           ";
+      *_menu = HOME_SCREEN;
+      break;
+    }
+    case 1: {
+      *_icon = ICON_PERSON;
+      *_desc = "User data       ";
+      *_menu = NO_MENU;
+      break;
+    }
+    case 2: {
+      *_icon = ICON_EJECT;
+      *_desc = "SD data         ";
+      *_menu = NO_MENU;
+      break;
+    }
+    case 3: {
+      *_icon = ICON_WAWES;
+      *_desc = "Wireless status ";
+      *_menu = NO_MENU;
+      break;
+    }
+    case 4: {
+      *_icon = ICON_SLIDERS;
+      *_desc = "Settings        ";
+      *_menu = NO_MENU;
+      break;
+    }
+    case 5: {
+      *_icon = ICON_HEART;
+      *_desc = "About           ";
+      *_menu = NO_MENU;
+      break;
+    }
+    default: {
+      *_icon = 'E';
+      *_desc = "Error           ";
+      *_menu = NO_MENU;
+      return false;
+      break;
+    }
+  }
+  return true;
+}
+
+bool KuroGUI::write_icon(uint8_t icon, uint8_t column, uint8_t row) {
   for(uint8_t i = 0; i < 8; i++) {
     if(icon_buffer[i] == icon) {
+      _lcd->setCursor(column, row);
       _lcd->write(i);
       return true;
     }
     if(icon_buffer[i] == NULL) {
       create_icon(icon, i);
-      _lcd->setCursor(row, column); // https://forum.arduino.cc/t/is-it-possible-to-modify-my-custom-lcd-characters-in-the-main-loop/394713/3
+      _lcd->setCursor(column, row); // https://forum.arduino.cc/t/is-it-possible-to-modify-my-custom-lcd-characters-in-the-main-loop/394713/3
       _lcd->write(i);
       return true;
     }
@@ -173,6 +251,22 @@ bool KuroGUI::negate_icon(uint8_t icon) {
     }
   }
   return false;
+}
+
+bool KuroGUI::restore_icon(uint8_t icon) {
+  for(uint8_t i = 0; i < 8; i++) {
+    if(icon_buffer[i] == icon) {
+      uint8_t* icon_data = fetch_icon(icon);
+      _lcd->createChar(i, icon_data);
+      return true;
+    }
+  }
+  return false;
+}
+
+void KuroGUI::delete_char_at(uint8_t column, uint8_t row) {
+  _lcd->setCursor(column, row);
+  _lcd->write(' ');
 }
 
 uint8_t* KuroGUI::fetch_icon(uint8_t icon) {
@@ -215,6 +309,73 @@ uint8_t* KuroGUI::fetch_icon(uint8_t icon) {
     }
     case ICON_CLOCKWISE: {
       return new uint8_t[8]{ B00100, B00110, B11111, B10110, B10100, B10000, B11110, B00000 };
+      break;
+    }
+    case ICON_ANTI_CLOCKWISE: {
+      return new uint8_t[8]{ B01111, B00001, B00101, B01101, B11111, B01100, B00100, B00000 };
+      break;
+    }
+    case ICON_PERSON: {
+      return new uint8_t[8]{ B01110, B10001, B10001, B10001, B01010, B10001, B11111, B00000 };
+      break;
+    }
+    case ICON_LOCKED: {
+      return new uint8_t[8]{ B01110, B01010, B01010, B11111, B11011, B11011, B01110, B00000 };
+      break;
+    }
+    case ICON_UNLOCKED: {
+      return new uint8_t[8]{ B01110, B01010, B01000, B11111, B11011, B11011, B01110, B00000 };
+      break;
+    }
+    case ICON_DOWNLOAD: {
+      return new uint8_t[8]{ B00100, B00100, B10101, B01110, B00100, B00000, B11111, B00000 };
+      break;
+    }
+    case ICON_BELL: {
+      return new uint8_t[8]{ B00100, B01110, B01110, B01110, B11111, B00000, B00100, B00000 };
+      break;
+    }
+    case ICON_HEART: {
+      return new uint8_t[8]{ B00000, B01010, B11111, B11111, B01110, B00100, B00000, B00000 };
+      break;
+    }
+    case ICON_FULL_WHITE: {
+      return new uint8_t[8]{ B11111, B11111, B11111, B11111, B11111, B11111, B11111, B11111 };
+      break;
+    }
+    case ICON_SLIDERS: {
+      return new uint8_t[8]{ B00000, B00010, B11111, B00010, B01000, B11111, B01000, B00000 };
+      break;
+    }
+    case ICON_WRENCH: {
+      return new uint8_t[8]{ B00000, B01010, B01110, B00100, B00100, B00100, B00000, B00000 };
+      break;
+    }
+  }
+}
+
+void KuroGUI::play_sound(uint8_t sound_id) {
+  switch(sound_id){
+    case SOUND_ERROR: {
+      tone(_buzzer_pin, 587, 30);
+      tone(_buzzer_pin, 30, 10);
+      tone(_buzzer_pin, 100, 10);
+      tone(_buzzer_pin, 30, 10);
+      tone(_buzzer_pin, 100, 10);
+      tone(_buzzer_pin, 30, 10);
+      tone(_buzzer_pin, 100, 10);
+      tone(_buzzer_pin, 30, 10);
+      tone(_buzzer_pin, 100, 10);
+      break;
+    }
+    case SOUND_COMPLETE: {
+      tone(_buzzer_pin, 880, 100);
+      tone(_buzzer_pin, 784, 100);
+      tone(_buzzer_pin, 698, 100);
+      tone(_buzzer_pin, 0, 100);
+      tone(_buzzer_pin, 784, 100);
+      tone(_buzzer_pin, 880, 100);
+      tone(_buzzer_pin, 1046, 100);
       break;
     }
   }

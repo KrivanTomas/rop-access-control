@@ -21,8 +21,8 @@
 // #define ENC_CLK 4
 // #define ENC_DT 0
 // #define ENC_SW 2
-#define BTN_OK 25
-#define BTN_UP 26
+#define BTN_OK 26
+#define BTN_UP 25
 #define BTN_DOWN 27
 
 #define RFID_UART_PORT 2
@@ -136,28 +136,8 @@ bool up_pressed = false;
 bool down_pressed = false;
 
 void loop() {
-  if(!ok_pressed && digitalRead(BTN_OK) == LOW){
-    ok_pressed = true;
-    gui.handle_input(INPUT_OK);
-  }
-  else if (digitalRead(BTN_OK) == HIGH && ok_pressed){
-    ok_pressed = false;
-  }
-  if(!up_pressed && digitalRead(BTN_UP) == LOW){
-    up_pressed = true;
-    gui.handle_input(INPUT_UP);
-  }
-  else if (digitalRead(BTN_UP) == HIGH && up_pressed){
-    up_pressed = false;
-  }
-  if(!down_pressed && digitalRead(BTN_DOWN) == LOW){
-    down_pressed = true;
-    gui.handle_input(INPUT_DOWN);
-  }
-  else if (digitalRead(BTN_DOWN) == HIGH && down_pressed){
-    down_pressed = false;
-  }
 
+  send_input_to_gui();
   gui.update();
 
   uint8_t token[RFID_TOKEN_LENGTH];
@@ -173,48 +153,30 @@ void loop() {
   }
 }
 
-// void home_screen(){
-//   ui_timer = millis();
-//   lcd.clear();
-//   lcd.home();
-//   DateTime now = rtc.now();
-//   lcd.printf("On Standby %2u:%02u", now.hour(), now.minute());
-// }
+void send_input_to_gui(){
+  if(!ok_pressed && digitalRead(BTN_OK) == LOW){
+    ok_pressed = true;
+    gui.handle_input(INPUT_OK, BEFORE_INPUT);
+  }
+  else if (digitalRead(BTN_OK) == HIGH && ok_pressed){
+    gui.handle_input(INPUT_OK, AFTER_INPUT);
+    ok_pressed = false;
+  }
+  if(!up_pressed && digitalRead(BTN_UP) == LOW){
+    up_pressed = true;
+    gui.handle_input(INPUT_UP, BEFORE_INPUT);
+  }
+  else if (digitalRead(BTN_UP) == HIGH && up_pressed){
+    gui.handle_input(INPUT_UP, AFTER_INPUT);
+    up_pressed = false;
+  }
+  if(!down_pressed && digitalRead(BTN_DOWN) == LOW){
+    down_pressed = true;
+    gui.handle_input(INPUT_DOWN, BEFORE_INPUT);
+  }
+  else if (digitalRead(BTN_DOWN) == HIGH && down_pressed){
+    gui.handle_input(INPUT_DOWN, AFTER_INPUT);
+    down_pressed = false;
+  }
+}
 
-// void update_home_screen(){
-//   ui_timer = millis();
-//   lcd.clear();
-//   lcd.home();
-//   DateTime now = rtc.now();
-//   lcd.printf("On Standby %2u:%02u", now.hour(), now.minute());
-// }
-
-// void menu_select(){
-//   lcd.clear();
-//   lcd.home();
-//   DateTime now = rtc.now();
-//   lcd.printf("On Standby %2u:%02u", now.hour(), now.minute());
-// }
-
-// void text_input(){
-//   lcd.cursor();
-//   lcd.clear();
-// }
-
-// void slide_letter(char *letter, uint8_t amount, int cur){
-//   if(*letter == ' '){
-//     *letter += amount;
-//     if(*letter > ' ') *letter = 'A';
-//     else *letter = 'Z';
-//   }
-//   else {
-//     *letter += amount;
-//     if(*letter > 'Z'|| *letter < 'A') *letter = ' ';
-//   }
-//   lcd.write(*letter);
-//   lcd.setCursor(cur, 0);
-// }
-
-// void no_text_input(){
-//   lcd.noCursor();
-// }

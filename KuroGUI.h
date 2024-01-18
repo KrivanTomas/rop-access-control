@@ -62,15 +62,20 @@ class KuroGUI
 {
   public:
     KuroGUI();
+    ~KuroGUI();
     void begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, uint8_t buzzer_pin);
     void update();
     void handle_input(uint8_t input, uint8_t input_state = BEFORE_INPUT);
+    bool show_toast(char* message);
   private:
     LiquidCrystal_I2C* _lcd;
     RTC_DS1307* _rtc;
     uint8_t _buzzer_pin;
     uint8_t ui_state;
     unsigned long ui_timer1;
+    unsigned long toast_timer;
+    uint8_t ui_toast_cache;
+    char* message_buffer;
     uint8_t u_cache1;
     uint8_t u_cache2;
     uint8_t u_cache3;

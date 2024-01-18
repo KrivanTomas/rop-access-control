@@ -34,7 +34,7 @@
 #define VOID_DURATION 500
 
 //common libraries
-#include "SPI.h"
+//#include "SPI.h"
 #include <Wire.h>
 
 //LCD (i2c)
@@ -44,7 +44,7 @@
 #include <HardwareSerial.h>
 
 //Micro SD card (spi)
-#include "FS.h"
+//#include "FS.h"
 #include "SD.h"
 
 //RTC (i2c)
@@ -53,11 +53,14 @@
 //Custom libraries
 #include "KuroRFID.h"
 #include "KuroGUI.h"
+#include "KuroSTORE.h"
+#include "KuroUTIL.h"
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);           // I2C address 0x27, 16 column and 2 rows
 HardwareSerial rfid_serial(RFID_UART_PORT);   // Serial port 2
 RTC_DS1307 rtc;
 KuroGUI gui;
+KuroSTORE store;
 
 unsigned long rfid_last_read;
 bool rfid_void_frag;
@@ -75,7 +78,8 @@ void setup() {
   Wire.begin();
   rtc.begin();
   gui.begin(&lcd, &rtc, BUZZER_PIN);
-  
+  store.begin(SDCARD_CS);
+
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(BTN_OK, INPUT_PULLUP);
   pinMode(BTN_UP, INPUT_PULLUP);
@@ -83,51 +87,6 @@ void setup() {
 
   rfid_last_read = millis();
   rfid_void_frag = true;
-
-  // if (!SD.begin(SDCARD_CS)) {
-  //   Serial.println(F("SD CARD FAILED, OR NOT PRESENT!"));
-  // }
-  // else {
-  //   uint8_t cardType = SD.cardType();
-
-  //   if(cardType == CARD_NONE){
-  //     Serial.println("No SD card attached");
-  //     return;
-  //   }
-
-  //   Serial.print("SD Card Type: ");
-  //   if(cardType == CARD_MMC){
-  //     Serial.println("MMC");
-  //   } else if(cardType == CARD_SD){
-  //     Serial.println("SDSC");
-  //   } else if(cardType == CARD_SDHC){
-  //     Serial.println("SDHC");
-  //   } else {
-  //     Serial.println("UNKNOWN");
-  //   }
-
-  //   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-  //   Serial.printf("SD Card Size: %lluMB\n", cardSize);
-
-  //   if (!SD.exists("/arduino.txt")) {
-  //     Serial.println(F("arduino.txt doesn't exist. Creating arduino.txt file..."));
-  //       // create a new file by opening a new file and immediately close it
-  //       File myFile = SD.open("/arduino.txt", FILE_WRITE);
-  //       myFile.close();
-  //   }
-
-  //   // recheck if file is created or not
-  //   if (SD.exists("/arduino.txt")){
-  //     Serial.println(F("arduino.txt exists on SD Card."));
-  //     lcd.clear();
-  //     lcd.print("SD works!!!!");
-  //   }
-  //   else{
-  //     Serial.println(F("arduino.txt doesn't exist on SD Card."));
-  //     lcd.clear();
-  //     lcd.print("ITS NOT WORKING");
-  //   }
-  // }
 }
 
 
@@ -147,6 +106,15 @@ void loop() {
     // for (uint8_t frag : token) {
     //   lcd.write(frag);
     // }
+    uint16_t id;
+    char* name;
+    uint8_t privilage;
+    store.get_user_by_rfid(token, &id, &privilage, &name);
+
+    Serial.println(name);
+    gui.show_toast(KuroUTIL::de_accent(name, 25));
+
+    delete[] name;
     tone(BUZZER_PIN, 1000, 50);
     rfid_last_read = millis();
     rfid_void_frag = true;

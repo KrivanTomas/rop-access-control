@@ -12,8 +12,14 @@
 #include "RTClib.h"
 
 #define MENU_ITEMS_COUNT 6
+#define TOAST_TIMEOUT 1000
 
 KuroGUI::KuroGUI() {
+  return;
+}
+
+KuroGUI::~KuroGUI() {
+  delete[] icon_buffer;
   return;
 }
 
@@ -23,7 +29,7 @@ void KuroGUI::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, uint8_t buzzer_pin)
   _rtc = rtc;
   icon_buffer = new uint8_t[8]{NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
   create_state(HOME_SCREEN);
-  play_sound(SOUND_COMPLETE);
+  //play_sound(SOUND_COMPLETE);
 }
 
 void KuroGUI::create_state(uint8_t state) {
@@ -75,6 +81,12 @@ void KuroGUI::create_state(uint8_t state) {
       _lcd->print(desc);
       break;
     }
+    case TOAST: {
+      _lcd->clear();
+      _lcd->backlight();
+      _lcd->print(message_buffer);
+      toast_timer = millis();
+    }
   }
 }
 
@@ -118,6 +130,11 @@ void KuroGUI::update(){
         }
       }
       break;
+    }
+    case TOAST: {
+      if(millis() - toast_timer >= TOAST_TIMEOUT){
+        create_state(ui_toast_cache);
+      }
     }
   }
 }
@@ -379,4 +396,11 @@ void KuroGUI::play_sound(uint8_t sound_id) {
       break;
     }
   }
+}
+
+bool KuroGUI::show_toast(char* message){
+  message_buffer = message;
+  ui_toast_cache = ui_state;
+  create_state(TOAST);
+  return true; // return false when unable to show toast
 }

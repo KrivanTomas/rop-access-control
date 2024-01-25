@@ -55,10 +55,12 @@ bool KuroSTORE::get_user_by_id(uint16_t id, uint8_t* privilage, uint8_t** rfid, 
     return false;
   }
   *privilage = file_r.read();
+  if(rfid != nullptr) delete[] rfid;
   *rfid = new uint8_t[12];
   for(int i = 0; i < 12; i++){
     (*rfid)[i] = file_r.read();
   }
+  if(name != nullptr) delete[] name;
   *name = new char[25];
   for(int i = 0; i < 25; i++){
     (*name)[i] = file_r.read();

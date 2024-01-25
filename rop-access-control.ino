@@ -112,9 +112,13 @@ void loop() {
     store.get_user_by_rfid(token, &id, &privilage, &name);
 
     Serial.println(name);
-    gui.show_toast(KuroUTIL::de_accent(name, 25));
+    
+    char* lcd_name = KuroUTIL::de_accent_utf8(name, 25);
+    gui.show_toast(lcd_name);
+    Serial.println(lcd_name);
 
     delete[] name;
+    delete[] lcd_name;
     tone(BUZZER_PIN, 1000, 50);
     rfid_last_read = millis();
     rfid_void_frag = true;

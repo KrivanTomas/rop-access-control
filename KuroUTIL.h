@@ -13,7 +13,7 @@
 class KuroUTIL
 {
   public:
-    static char* de_accent(char* text, uint16_t length);
+    static char* de_accent_utf8(char* text, uint8_t length);
 };
 
 #endif

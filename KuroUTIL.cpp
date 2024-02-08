@@ -101,3 +101,17 @@ char* KuroUTIL::de_accent_utf8(char* text, uint8_t length){
   }
   return out;
 }
+
+char* KuroUTIL::fill_space(char* text, uint8_t length){
+  char* output = new char[length];
+  for(int i = 0; i < length; i++){
+    if(text[i] == 0x0){ // could be janky
+      while(i < length){
+        output[i] = ' ';
+        i++;
+      }
+      break;
+    }
+    output[i] = text[i];
+  }
+}

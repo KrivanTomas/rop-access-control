@@ -9,10 +9,12 @@
 #include "Arduino.h"
 #include <LiquidCrystal_I2C.h>
 #include "KuroGUI.h"
+#include "KuroUTIL.h"
 #include "RTClib.h"
 
-#define MENU_ITEMS_COUNT 6
-#define TOAST_TIMEOUT 1000
+#define MAIN_MENU_ITEM_COUNT 6
+#define USERS_MENU_ITEM_COUNT 3
+#define TOAST_DEFAULT_TIMEOUT 1000
 
 KuroGUI::KuroGUI() {
   return;
@@ -28,23 +30,26 @@ void KuroGUI::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, uint8_t buzzer_pin)
   _lcd = lcd;
   _rtc = rtc;
   icon_buffer = new uint8_t[8]{NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
+  authority_request = AUTH_NONE;
+  gui_requests = 0;
   create_state(HOME_SCREEN);
   //play_sound(SOUND_COMPLETE);
 }
 
 void KuroGUI::create_state(uint8_t state) {
   clear_icon_buffer();
-  ui_state = state;
+  ui_state = state == AUTHORIZATION ? ui_state : state;
   switch(state){
     case NO_MENU: {
       _lcd->clear();
       _lcd->backlight();
-      _lcd->print("NO STATE SET");
+      _lcd->print("ERROR state set");
       _lcd->setCursor(0,1);
-      _lcd->print("DEF TO HOME ..");
+      _lcd->print("setting to home ..");
       play_sound(SOUND_ERROR);
       delay(1000);
       create_state(HOME_SCREEN);
+      break;
     }
     case HOME_SCREEN: {
       b_cache1 = true;
@@ -62,32 +67,111 @@ void KuroGUI::create_state(uint8_t state) {
       ui_timer1 = millis();
       break;
     }
-    case MENU_SELECT: {
+    case MAIN_MENU: {
       _lcd->clear();
       _lcd->backlight();
 
-      uint8_t icon;
-      uint8_t menu;
-      char* desc;
-      for(uint8_t i = 0; i < MENU_ITEMS_COUNT; i++){
-        get_menu_item(i, &icon, &desc, &menu);
-        write_icon(icon, i * 2, 0);
+      build_menu(MAIN_MENU_ITEM_COUNT);
+      break;
+    }
+    case USERS_MENU: {
+      _lcd->clear();
+      _lcd->backlight();
+
+      build_menu(USERS_MENU_ITEM_COUNT);
+      break;
+    }
+    case AUTHORIZATION: {
+      if(authority_request == AUTH_NONE){
+        Serial.println("No authority set before creating state!");
+        create_state(NO_MENU);
       }
-      
-      u_cache1 = 0; //menu index
-      get_menu_item(u_cache1, &icon, &desc, &menu);
-      negate_icon(icon);
-      _lcd->setCursor(0, 1);
-      _lcd->print(desc);
+      u_cache1 = ui_state; // return if fail
+      ui_state = state;
+      _lcd->clear();
+      _lcd->backlight();
+      if(authority_request == AUTH_ANY){
+        _lcd->print("Recording tag ...");
+        _lcd->setCursor(0, 1);
+        _lcd->print("Awaiting RFID");
+      }
+      else {
+        _lcd->print("Authorization ...");
+        _lcd->setCursor(0, 1);
+        _lcd->print("Awaiting RFID");
+      }
       break;
     }
     case TOAST: {
       _lcd->clear();
       _lcd->backlight();
       _lcd->print(message_buffer);
-      toast_timer = millis();
+      break;
+    }
+    case ABOUT: {
+      _lcd->clear();
+      _lcd->backlight();
+      _lcd->print("Made by");
+      _lcd->setCursor(0, 1);
+      _lcd->print("Tomas Krivan");
+      break;
+    }
+    case ADD_USER: {
+      _lcd->clear();
+      _lcd->backlight();
+      _lcd->print("New user added");
+      ui_timer1 = millis();
+      break;
+    }
+    default: {
+      create_state(NO_MENU);
+      break;
     }
   }
+}
+
+void KuroGUI::build_menu(uint8_t item_count){
+  uint8_t icon;
+  uint8_t menu;
+  char* desc;
+  bool auth;
+  uint8_t auth_value;
+  for(uint8_t i = 0; i < item_count; i++){
+    get_menu_item(i, &icon, &desc, &menu, &auth, &auth_value);
+    write_icon(icon, i * 2, 0);
+  }
+  
+  u_cache1 = 0; //menu index
+  get_menu_item(u_cache1, &icon, &desc, &menu, &auth, &auth_value);
+  negate_icon(icon);
+  _lcd->setCursor(0, 1);
+  _lcd->print(desc);
+}
+
+void KuroGUI::input_to_menu(uint8_t item_count, uint8_t input, uint8_t input_state){
+  uint8_t icon;
+  uint8_t menu;
+  char* desc;
+  bool auth;
+  uint8_t auth_value;
+  get_menu_item(u_cache1, &icon, &desc, &menu, &auth, &auth_value);
+  if(input == INPUT_OK){
+    if(auth){
+      u_cache2 = menu; // success menu
+      authority_request = auth_value;
+      create_state(AUTHORIZATION);
+      return;
+    }
+    create_state(menu);
+    return;
+  }
+  restore_icon(icon);
+  if(input == INPUT_UP) u_cache1 = u_cache1 == 0 ? item_count - 1 : u_cache1 - 1;
+  if(input == INPUT_DOWN) u_cache1 = u_cache1 == item_count - 1 ? 0 : u_cache1 + 1;
+  get_menu_item(u_cache1, &icon, &desc, &menu, &auth, &auth_value);
+  negate_icon(icon);
+  _lcd->setCursor(0, 1);
+  _lcd->print(desc);
 }
 
 void KuroGUI::update(){
@@ -131,10 +215,18 @@ void KuroGUI::update(){
       }
       break;
     }
+    case ADD_USER: {
+      if(millis() - ui_timer1 > 1000){
+        gui_requests |= REQUEST_NEW_USER;
+        create_state(USERS_MENU);
+      }
+      break;
+    }
     case TOAST: {
-      if(millis() - toast_timer >= TOAST_TIMEOUT){
+      if(millis() >= toast_timer) {
         create_state(ui_toast_cache);
       }
+      break;
     }
   }
 }
@@ -143,79 +235,148 @@ void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
   switch(ui_state){
     case HOME_SCREEN: {
       if (input_state == BEFORE_INPUT) return;
-      create_state(MENU_SELECT);
+      create_state(MAIN_MENU);
       break;
     }
-    case MENU_SELECT: {
+    case MAIN_MENU: {
       if (input_state == BEFORE_INPUT) return;
-      uint8_t icon;
-      uint8_t menu;
-      char* desc;
-      get_menu_item(u_cache1, &icon, &desc, &menu);
-      if(input == INPUT_OK){
-        create_state(menu);
-        return;
-      }
-      restore_icon(icon);
-      if(input == INPUT_UP) u_cache1 = u_cache1 == 0 ? MENU_ITEMS_COUNT - 1 : u_cache1 - 1;
-      if(input == INPUT_DOWN) u_cache1 = u_cache1 == MENU_ITEMS_COUNT - 1 ? 0 : u_cache1 + 1;
-      get_menu_item(u_cache1, &icon, &desc, &menu);
-      negate_icon(icon);
-      _lcd->setCursor(0, 1);
-      _lcd->print(desc);
+      input_to_menu(MAIN_MENU_ITEM_COUNT, input, input_state);
+      break;
+    }
+    case USERS_MENU: {
+      if (input_state == BEFORE_INPUT) return;
+      input_to_menu(USERS_MENU_ITEM_COUNT, input, input_state);
+      break;
+    }
+    case AUTHORIZATION: {
+      if (input_state == BEFORE_INPUT) return;
+      cancel_authorization();
+      break;
+    }
+    case ABOUT: {
+      if (input_state == BEFORE_INPUT) return;
+      create_state(MAIN_MENU);
       break;
     }
   }
 }
 
+bool KuroGUI::query_requests(uint8_t* requests, uint8_t rfid[12]){
+  *requests = gui_requests;
+  gui_requests = 0;
+  for(int i = 0; i < 12; i++){ // rfid_token will be freed at the end of the loop() function
+    rfid[i] = user_rfid_token[i];
+  }
+  return *requests;
+}
 
+void KuroGUI::comply_with_authorization(uint8_t rfid_token[12]){
+  authority_request = AUTH_NONE;
+  if(ui_state != AUTHORIZATION) return;
+  for(int i = 0; i < 12; i++){ // rfid_token will be freed at the end of the loop() function
+    user_rfid_token[i] = rfid_token[i];
+  }
+  create_state(u_cache2); // success
+}
 
-bool KuroGUI::get_menu_item(uint8_t menu_index, uint8_t* _icon, char** _desc, uint8_t* _menu){
-  switch(menu_index){
-    case 0: {
-      *_icon = ICON_HOME;
-      *_desc = "Home           ";
-      *_menu = HOME_SCREEN;
+void KuroGUI::cancel_authorization(){
+  authority_request = AUTH_NONE;
+  if(ui_state != AUTHORIZATION) return;
+  create_state(u_cache1); // failure
+}
+
+bool KuroGUI::get_menu_item(uint8_t menu_index, uint8_t* _icon, char** _desc, uint8_t* _menu, bool* authorize, uint8_t* authority_value){
+  *authorize = false;
+  *authority_value = AUTH_NONE;
+  switch(ui_state){
+    case MAIN_MENU: {
+      switch(menu_index){
+        case 0: {
+          *_icon = ICON_HOME;
+          *_desc = "Home           ";
+          *_menu = HOME_SCREEN;
+          break;
+        }
+        case 1: {
+          *_icon = ICON_PERSON;
+          *_desc = "User data       ";
+          *_menu = USERS_MENU;
+          *authorize = true;
+          *authority_value = AUTH_READER;
+          break;
+        }
+        case 2: {
+          *_icon = ICON_EJECT;
+          *_desc = "SD data         ";
+          *_menu = SD_DATA;
+          break;
+        }
+        case 3: {
+          *_icon = ICON_WIRELESS;
+          *_desc = "Wireless status ";
+          *_menu = WIRELESS_DATA;
+          break;
+        }
+        case 4: {
+          *_icon = ICON_SLIDERS;
+          *_desc = "Settings        ";
+          *_menu = SETTINGS;
+          break;
+        }
+        case 5: {
+          *_icon = ICON_HEART;
+          *_desc = "About           ";
+          *_menu = ABOUT;
+          break;
+        }
+        default: {
+          *_icon = 'E';
+          *_desc = "Error           ";
+          *_menu = NO_MENU;
+          return false;
+          break;
+        }
+      }
       break;
     }
-    case 1: {
-      *_icon = ICON_PERSON;
-      *_desc = "User data       ";
-      *_menu = NO_MENU;
-      break;
-    }
-    case 2: {
-      *_icon = ICON_EJECT;
-      *_desc = "SD data         ";
-      *_menu = NO_MENU;
-      break;
-    }
-    case 3: {
-      *_icon = ICON_WAWES;
-      *_desc = "Wireless status ";
-      *_menu = NO_MENU;
-      break;
-    }
-    case 4: {
-      *_icon = ICON_SLIDERS;
-      *_desc = "Settings        ";
-      *_menu = NO_MENU;
-      break;
-    }
-    case 5: {
-      *_icon = ICON_HEART;
-      *_desc = "About           ";
-      *_menu = NO_MENU;
+    case USERS_MENU: {
+      switch(menu_index){
+        case 0: {
+          *_icon = ICON_LEFT;
+          *_desc = "Back           ";
+          *_menu = MAIN_MENU;
+          break;
+        }
+        case 1: {
+          *_icon = ICON_PERSON;
+          *_desc = "Edit user      ";
+          *_menu = NO_MENU;
+          break;
+        }
+        case 2: {
+          *_icon = ICON_PLUS;
+          *_desc = "Add user       ";
+          *_menu = ADD_USER;
+          *authorize = true;
+          *authority_value = AUTH_ANY;
+          break;
+        }
+        default: {
+          *_icon = 'E';
+          *_desc = "Error           ";
+          *_menu = NO_MENU;
+          return false;
+          break;
+        }
+      }
       break;
     }
     default: {
-      *_icon = 'E';
-      *_desc = "Error           ";
-      *_menu = NO_MENU;
       return false;
       break;
     }
   }
+  
   return true;
 }
 
@@ -244,7 +405,9 @@ void KuroGUI::clear_icon_buffer() {
 
 void KuroGUI::create_icon(uint8_t icon, uint8_t address) {
   icon_buffer[address] = icon;
-  _lcd->createChar(address, fetch_icon(icon));
+  uint8_t* icon_data = fetch_icon(icon);
+  _lcd->createChar(address, icon_data);
+  delete icon_data;
 }
 
 void KuroGUI::destroy_icon(uint8_t icon) {
@@ -264,6 +427,7 @@ bool KuroGUI::negate_icon(uint8_t icon) {
         icon_data[i_data] = ~icon_data[i_data];
       }
       _lcd->createChar(i, icon_data);
+      delete icon_data;
       return true;
     }
   }
@@ -275,6 +439,7 @@ bool KuroGUI::restore_icon(uint8_t icon) {
     if(icon_buffer[i] == icon) {
       uint8_t* icon_data = fetch_icon(icon);
       _lcd->createChar(i, icon_data);
+      delete icon_data;
       return true;
     }
   }
@@ -368,6 +533,14 @@ uint8_t* KuroGUI::fetch_icon(uint8_t icon) {
       return new uint8_t[8]{ B00000, B01010, B01110, B00100, B00100, B00100, B00000, B00000 };
       break;
     }
+    case ICON_WIRELESS: {
+      return new uint8_t[8]{ B01110, B11011, B10001, B00100, B01010, B00000, B00100, B00000 };
+      break;
+    }
+    case ICON_PLUS: {
+      return new uint8_t[8]{ B00000, B00000, B00100, B01110, B00100, B00000, B00000, B00000 };
+      break;
+    }
   }
 }
 
@@ -395,12 +568,28 @@ void KuroGUI::play_sound(uint8_t sound_id) {
       tone(_buzzer_pin, 1046, 100);
       break;
     }
+    case SOUND_WHISTLE: {
+      tone(_buzzer_pin, 494, 150);
+      tone(_buzzer_pin, 587, 150);
+      tone(_buzzer_pin, 988, 150);
+      tone(_buzzer_pin, 0, 35);
+      tone(_buzzer_pin, 880, 150);
+      tone(_buzzer_pin, 0, 150);
+      tone(_buzzer_pin, 740, 150);
+      break;
+    }
   }
 }
 
-bool KuroGUI::show_toast(char* message){
+bool KuroGUI::show_toast(char* message, uint16_t timeout){
+  toast_timer = millis() + (timeout == 0 ? TOAST_DEFAULT_TIMEOUT : timeout);
   message_buffer = message;
-  ui_toast_cache = ui_state;
+  ui_toast_cache = ui_state != TOAST ? ui_state : ui_toast_cache;
   create_state(TOAST);
-  return true; // return false when unable to show toast
+  return true; // TODO return false when unable to show toast
+}
+
+bool KuroGUI::require_authorization(uint8_t* authority_requirement){
+  *authority_requirement = authority_request;
+  return authority_request >= AUTH_ANY;
 }

@@ -12,8 +12,11 @@
 #include "KuroUTIL.h"
 #include "RTClib.h"
 
+
+#include "KuroSTORE.h" //patchwork
+
 #define MAIN_MENU_ITEM_COUNT 6
-#define USERS_MENU_ITEM_COUNT 3
+#define USERS_MENU_ITEM_COUNT 4
 #define TOAST_DEFAULT_TIMEOUT 1000
 
 KuroGUI::KuroGUI() {
@@ -25,10 +28,12 @@ KuroGUI::~KuroGUI() {
   return;
 }
 
-void KuroGUI::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, uint8_t buzzer_pin){
+void KuroGUI::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, KuroSTORE* store, uint8_t buzzer_pin){
   _buzzer_pin = buzzer_pin;
   _lcd = lcd;
   _rtc = rtc;
+  _store = store;
+  text_inputed = false;
   icon_buffer = new uint8_t[8]{NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
   authority_request = AUTH_NONE;
   gui_requests = 0;
@@ -56,7 +61,8 @@ void KuroGUI::create_state(uint8_t state) {
       _lcd->clear();
       _lcd->backlight();
       DateTime now = _rtc->now();
-      _lcd->printf("On Standby %2u:%02u", now.hour(), now.minute());
+      b_cache2 = _is_on;
+      _lcd->printf("% 10s %2u:%02u", b_cache2 ? "Powered on" : "On Standby", now.hour(), now.minute());
       _lcd->setCursor(0, 1);
       _lcd->printf("%u\.%u\.%u", now.day(), now.month(), now.year());
       u_cache1 = now.year();
@@ -117,10 +123,36 @@ void KuroGUI::create_state(uint8_t state) {
       break;
     }
     case ADD_USER: {
+      if(!text_inputed) {
+        u_cache4 = ui_state;
+        create_state(TEXT_EDIT);
+        break;
+      }
+      text_inputed = false;
       _lcd->clear();
       _lcd->backlight();
       _lcd->print("New user added");
       ui_timer1 = millis();
+      break;
+    }
+    case USERS_LIST: {
+      _lcd->clear();
+      _lcd->backlight();
+      _lcd->print("Select a user");
+      b_cache1 = true;
+      ui_timer1 = millis() + 1000;
+      break;
+    }
+    case TEXT_EDIT: {
+      _lcd->clear();
+      _lcd->backlight();
+      _lcd->cursor_on();
+      u_cache1 = 32; // char
+      u_cache2 = 0; // column
+      u_cache3 = 0; // last char
+      for(int i = 0; i < 25; i++){
+        user_name[i] = 0;
+      }
       break;
     }
     default: {
@@ -182,6 +214,11 @@ void KuroGUI::update(){
         b_cache1 = !b_cache1;
 
         DateTime now = _rtc->now();
+        if(b_cache2 != _is_on){
+          b_cache2 = _is_on;
+          _lcd->setCursor(0, 0);
+          _lcd->printf("% 10s", b_cache2 ? "Powered on" : "On Standby");
+        }
         if(now.year() != u_cache1) {
           _lcd->setCursor(11, 0);
           _lcd->printf("%2u%c%02u", now.hour(), b_cache1 ? ':' : ' ', now.minute(), now.day(), now.month(), now.year());
@@ -222,6 +259,28 @@ void KuroGUI::update(){
       }
       break;
     }
+    case USERS_LIST: {
+      if(ui_timer1 > millis() && b_cache1){
+        b_cache1 = false;
+        u_cache1 = 1;
+        _lcd->clear();
+        _lcd->backlight();
+        uint8_t priv;
+        uint8_t* rfid = new uint8_t[12];
+        char* name = new char[25];
+        if(_store->get_user_by_static_id(u_cache1, &priv, &rfid, &name)){
+          char* lcd_name = KuroUTIL::de_accent_utf8(name, 25);
+          _lcd->printf("%d: %s", u_cache1, lcd_name);
+          delete[] lcd_name;
+        }
+        else {
+          _lcd->printf("%d: empty", u_cache1);
+        }
+        delete[] name;
+        delete[] rfid;
+      }
+      break;
+    }
     case TOAST: {
       if(millis() >= toast_timer) {
         create_state(ui_toast_cache);
@@ -258,14 +317,95 @@ void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
       create_state(MAIN_MENU);
       break;
     }
+    case USERS_LIST: {     
+      if (input_state == BEFORE_INPUT) {
+        ui_timer1 = millis() + 500;
+        return;
+      }
+      if(input == INPUT_OK){
+        if(ui_timer1 < millis()){
+          create_state(USERS_MENU);
+          break;
+        }
+        show_toast("Nah", 200);
+      }
+      if(input == INPUT_UP && u_cache1 > 1){
+        u_cache1--;
+        _lcd->clear();
+        uint8_t priv;
+        uint8_t* rfid = new uint8_t[12];
+        char* name = new char[25];
+        if(_store->get_user_by_static_id(u_cache1, &priv, &rfid, &name)){
+          char* lcd_name = KuroUTIL::de_accent_utf8(name, 25);
+          _lcd->printf("%d: %s", u_cache1, lcd_name);
+          delete[] lcd_name;
+        }
+        else {
+          _lcd->printf("%d: empty", u_cache1);
+        }
+        delete[] name;
+        delete[] rfid;
+      }
+      if(input == INPUT_DOWN){
+        u_cache1++;
+        _lcd->clear();
+        uint8_t priv;
+        uint8_t* rfid = new uint8_t[12];
+        char* name = new char[25];
+        if(_store->get_user_by_static_id(u_cache1, &priv, &rfid, &name)){
+          char* lcd_name = KuroUTIL::de_accent_utf8(name, 25);
+          _lcd->printf("%d: %s", u_cache1, lcd_name);
+          delete[] lcd_name;
+        }
+        else {
+          _lcd->printf("%d: empty", u_cache1);
+        }
+        delete[] name;
+        delete[] rfid;
+      }
+      break;
+    }
+    case TEXT_EDIT: {
+      if (input_state == BEFORE_INPUT){
+        return;
+      }
+      if(input == INPUT_OK){
+        user_name[u_cache2] = (char)u_cache1;
+        if(u_cache3 == 32 && u_cache1 == 32){
+          _lcd->cursor_off();
+          text_inputed = true;
+          create_state(u_cache4);
+          break;
+        }
+        u_cache3 = u_cache1;
+        u_cache1 = 32;
+        u_cache2++;
+      }
+      if(input == INPUT_UP){
+        u_cache1--;
+        if(u_cache1 == 31) u_cache1 = 122;
+        if(u_cache1 == 96) u_cache1 = 32;
+      }
+      if(input == INPUT_DOWN){
+        u_cache1++;
+        if(u_cache1 == 33) u_cache1 = 97;
+        if(u_cache1 == 123) u_cache1 = 32;
+      }
+      _lcd->setCursor(u_cache2, 0);
+      _lcd->write(u_cache1);
+      _lcd->setCursor(u_cache2, 0);
+    }
   }
 }
 
-bool KuroGUI::query_requests(uint8_t* requests, uint8_t rfid[12]){
+bool KuroGUI::query_requests(uint8_t* requests, uint8_t rfid[12], char name[25]){
   *requests = gui_requests;
   gui_requests = 0;
   for(int i = 0; i < 12; i++){ // rfid_token will be freed at the end of the loop() function
     rfid[i] = user_rfid_token[i];
+  }
+  for(int i = 0; i < 25; i++){ // rfid_token will be freed at the end of the loop() function
+    name[i] = user_name[i];
   }
   return *requests;
 }
@@ -348,12 +488,18 @@ bool KuroGUI::get_menu_item(uint8_t menu_index, uint8_t* _icon, char** _desc, ui
           break;
         }
         case 1: {
+          *_icon = ICON_WRITE;
+          *_desc = "User data      ";
+          *_menu = USERS_LIST;
+          break;
+        }
+        case 2: {
           *_icon = ICON_PERSON;
           *_desc = "Edit user      ";
           *_menu = NO_MENU;
           break;
         }
-        case 2: {
+        case 3: {
           *_icon = ICON_PLUS;
           *_desc = "Add user       ";
           *_menu = ADD_USER;
@@ -592,4 +738,8 @@ bool KuroGUI::show_toast(char* message, uint16_t timeout){
 bool KuroGUI::require_authorization(uint8_t* authority_requirement){
   *authority_requirement = authority_request;
   return authority_request >= AUTH_ANY;
+}
+
+void KuroGUI::set_operation(bool is_on){
+  _is_on = is_on;
 }

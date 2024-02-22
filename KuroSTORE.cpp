@@ -15,6 +15,7 @@
 //#include "FS.h"
 //#include <FS.h>
 #include <SD.h>
+#include "RTClib.h"
 //#include "SPI.h"
 
 #define BLOCK_SIZE 512
@@ -24,9 +25,13 @@ KuroSTORE::KuroSTORE(){
   return;
 }
 
-void KuroSTORE::begin(uint8_t sdcard_cs){
+void KuroSTORE::begin(uint8_t sdcard_cs, RTC_DS1307* rtc){
+  _rtc = rtc;
   _sdcard_cs = sdcard_cs;
+  last_event_address = 0;
   sd_connected = connect();
+
+
   if(sd_connected){
     if(!SD.exists("/users.dat")){
       Serial.println("No user database found");
@@ -41,6 +46,39 @@ void KuroSTORE::begin(uint8_t sdcard_cs){
       else {
         Serial.println("Users database created.");
       }
+    }
+    if(!SD.exists("/events.dat")){
+      Serial.println("No event database found");
+      Serial.println("Creating a new event database file ...");
+      File user_f = SD.open("/events.dat", FILE_WRITE);
+      user_f.write(0);
+      user_f.write(0);
+      user_f.close();
+      if(!SD.exists("/events.dat")){
+        Serial.println("Could not create a new file!");
+      }
+      else {
+        Serial.println("Event database created.");
+      }
+    }
+    if(!SD.exists("/values.dat")){
+      Serial.println("No value database found");
+      Serial.println("Creating a new value database file ...");
+      File user_f = SD.open("/values.dat", FILE_WRITE);
+      user_f.write(0);
+      user_f.write(0);
+      user_f.close();
+      if(!SD.exists("/values.dat")){
+        Serial.println("Could not create a new file!");
+      }
+      else {
+        Serial.println("Value database created.");
+      }
+    }
+    else {
+      File values_r = SD.open("/values.dat", FILE_WRITE);
+      last_event_address = (uint16_t)values_r.read() << 8 | (uint16_t)values_r.read();
+      values_r.close();
     }
   }
 }
@@ -105,13 +143,9 @@ bool KuroSTORE::get_user_by_static_id(uint16_t id, uint8_t* privilage, uint8_t**
     return false;
   }
   *privilage = file_r.read();
-  if(rfid != nullptr) delete[] rfid;
-  *rfid = new uint8_t[12];
   for(int i = 0; i < 12; i++){
     (*rfid)[i] = file_r.read();
   }
-  if(name != nullptr) delete[] name;
-  *name = new char[25];
   for(int i = 0; i < 25; i++){
     (*name)[i] = file_r.read();
   }
@@ -179,7 +213,7 @@ void KuroSTORE::add_user(uint16_t* id, uint8_t privilage, uint8_t* rfid, char* n
 
   file_r.close();
   
-  File file_w = SD.open("/users.dat", FILE_WRITE);
+  File file_w = SD.open("/users.dat", FILE_APPEND);
   
   if(outside_of){
     empty_addr += 40;
@@ -207,9 +241,52 @@ bool KuroSTORE::verify_authority(uint16_t id, uint8_t authority_requirement){
   if(!get_user_by_static_id(id, &privilage, &rfid, &name)) return false;
   return privilage >= authority_requirement;
 }
-
-// 2 bytes event_id | 2 bytes user_id | 1 byte event_type | 4 bytes seconds from 2000 | 19 bytes ISO 8601 date string YYYY-MM-DDTHH:mm:ss | 20 bytes custom data
+// 2 bytes event_id | 2 bytes user_id | 1 byte event_type | 8 bytes unix time | 19 bytes ISO 8601 date string YYYY-MM-DDTHH:mm:ss | 20 bytes custom data => 52 bytes
 // rollover recording
-void KuroSTORE::record_event(){
+void KuroSTORE::record_event(uint16_t user_id, uint8_t event_type, uint8_t custom_data[20]){
+  File file_r = SD.open("/events.dat", FILE_READ);
 
+  file_r.read();
+  unsigned long base_address = file_r.position() - 1; // 2 bytes foward from begining for some reason
+  file_r.close();
+
+  unsigned long address = base_address + 52 * last_event_address;
+
+  File file_w = SD.open("/events.dat", FILE_APPEND);
+  
+  Serial.printf("Writing new event at adress 0x%X\n", address);
+  file_w.seek(address); // does not go back and appends anyway (╯°□°）╯︵ ┻━┻
+
+  file_w.write(last_event_address << 8 & 0xFF);
+  file_w.write(last_event_address << 0 & 0xFF);
+
+  file_w.write(user_id << 8 & 0xFF);
+  file_w.write(user_id << 0 & 0xFF);
+  file_w.write(event_type);
+
+  DateTime now = _rtc->now();
+  uint64_t unix = now.unixtime();
+  //Serial.println(unix);
+
+  for(uint8_t i = 0; i < 8; i++){
+    file_w.write(unix >> (8 * (7 - i)) & 0xFF);
+  }
+
+  char iso_buffer[30];
+  sprintf(iso_buffer, "%04d-%02d-%02dT%02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
+
+  for(int i = 0; i < 19; i++){
+    file_w.write(iso_buffer[i]);
+  }
+
+  for(int i = 0; i < 20; i++){
+    file_w.write(custom_data[i]);
+  }
+  file_w.close();
+  last_event_address++;
+
+  File values_w = SD.open("/values.dat", FILE_WRITE);
+  values_w.write(last_event_address << 8 & 0xFF);
+  values_w.write(last_event_address << 0 & 0xFF);
+  values_w.close();
 }

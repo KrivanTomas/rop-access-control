@@ -13,6 +13,8 @@
 #include "KuroUTIL.h"
 #include "RTClib.h"
 
+#include "KuroSTORE.h" //patchwork
+
 #define MENU_SELECT_COUNT  6
 
 #define NO_MENU     0x00
@@ -73,18 +75,20 @@ class KuroGUI
   public:
     KuroGUI();
     ~KuroGUI();
-    void begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, uint8_t buzzer_pin);
+    void begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, KuroSTORE* store,uint8_t buzzer_pin);
     void update();
+    void set_operation(bool is_on);
     void handle_input(uint8_t input, uint8_t input_state = BEFORE_INPUT);
     bool show_toast(char* message, uint16_t timeout = 0);
     void play_sound(uint8_t sound_id);
     bool require_authorization(uint8_t* authority_requirement);
-    bool query_requests(uint8_t* requests, uint8_t rfid[12]);
+    bool query_requests(uint8_t* requests, uint8_t rfid[12], char name[25]);
     void comply_with_authorization(uint8_t rfid_token[12]);
     void cancel_authorization();
   private:
     LiquidCrystal_I2C* _lcd;
     RTC_DS1307* _rtc;
+    KuroSTORE* _store;
     uint8_t _buzzer_pin;
     uint8_t ui_state;
     unsigned long ui_timer1;
@@ -92,6 +96,7 @@ class KuroGUI
     uint8_t ui_toast_cache;
     char* message_buffer;
     uint8_t user_rfid_token[12];
+    char user_name[25];
     uint8_t authority_request;
     uint8_t u_cache1;
     uint8_t u_cache2;
@@ -99,7 +104,10 @@ class KuroGUI
     uint8_t u_cache4;
     uint8_t u_cache5;
     bool b_cache1;
+    bool b_cache2;
+    bool _is_on;
     uint8_t gui_requests; // flag register = create new user | ? | ? | ? | ? | ? | ? | ? 
+    bool text_inputed;
     void create_state(uint8_t state);
     uint8_t* icon_buffer;
     uint8_t* fetch_icon(uint8_t icon);

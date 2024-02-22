@@ -114,8 +114,8 @@ uint8_t DateTime::dayOfWeek() const {
     return (day + 6) % 7; // Jan 1, 2000 is a Saturday, i.e. returns 6
 }
 
-uint32_t DateTime::unixtime(void) const {
-  uint32_t t;
+uint64_t DateTime::unixtime(void) const {
+  uint64_t t;
   uint16_t days = date2days(yOff, m, d);
   t = time2long(days, hh, mm, ss);
   t += SECONDS_FROM_1970_TO_2000;  // seconds from 1970 to 2000

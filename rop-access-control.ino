@@ -84,6 +84,10 @@ unsigned long ui_timer;
 uint8_t ui_value1;
 bool ui_request = false;
 
+#define MAX_ACTIVE_USERS 30
+uint16_t active_users[MAX_ACTIVE_USERS];
+bool any_user_active = false;
+
 void setup() {
   Serial.begin(SERIAL_BAUD);  // debug console
   rfid_serial.begin(RFID_BAUD, SERIAL_8N1);
@@ -91,8 +95,8 @@ void setup() {
 
   Wire.begin();
   rtc.begin();
-  gui.begin(&lcd, &rtc, BUZZER_PIN);
-  store.begin(SDCARD_CS);
+  store.begin(SDCARD_CS, &rtc);
+  gui.begin(&lcd, &rtc, &store, BUZZER_PIN);
 
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(BTN_OK, INPUT_PULLUP);
@@ -125,13 +129,13 @@ void loop() {
       Serial.printf("Authority of at least 0x%X needed\n", authority_requirement);
       if(authority_requirement == AUTH_ANY){
         Serial.println("Token read and passed");
-        gui.play_sound(SOUND_WHISTLE);
+        gui.play_sound(SOUND_COMPLETE);
         gui.comply_with_authorization(token);
       }
       else if(store.get_user_by_rfid(token, &id, &privilage, &name)){
         if(privilage >= authority_requirement){
           Serial.println("Access granted");
-          gui.play_sound(SOUND_WHISTLE);
+          gui.play_sound(SOUND_COMPLETE);
           gui.comply_with_authorization(token);
         }
         else {
@@ -149,16 +153,50 @@ void loop() {
     }
     else if(store.get_user_by_rfid(token, &id, &privilage, &name)){
       Serial.printf("id:%d name:%s\n", id, name);
-    
-      char* lcd_name = KuroUTIL::de_accent_utf8(name, 25);
-      gui.show_toast(lcd_name);
 
+      char* lcd_name = KuroUTIL::de_accent_utf8(name, 25);
+      
+      uint8_t custom_data[20];
+      for(int i = 0; i < 20; i++){
+        custom_data[i] = 0;
+      }
+
+      bool user_active = false;
+      for(uint16_t active_id : active_users){
+        if(active_id == id){
+          user_active = true;
+          break;
+        }
+      }
+      if(user_active) {
+        gui.show_toast("Leaving...",500);
+        for(int i = 0; i < MAX_ACTIVE_USERS; i++){
+          if(active_users[i] == id){
+            active_users[i] = 0;
+          }
+        }  
+        store.record_event(id, EVENT_LEAVE, custom_data);
+        tone(BUZZER_PIN, 200, 50);
+      }else {
+        gui.show_toast(lcd_name);
+        for(int i = 0; i < MAX_ACTIVE_USERS; i++){
+          if(active_users[i] == 0){
+           active_users[i] = id;
+           break;
+          }
+        }
+        store.record_event(id, EVENT_JOIN, custom_data);
+      }
+
+      gui.set_operation(check_for_users());
+      
       delete[] name;
       delete[] lcd_name;
       tone(BUZZER_PIN, 1000, 50);
     }
     else {
       gui.show_toast("User not found");
+      Serial.printf("unknown user rifd: %s\n", token);
       //uint16_t new_id;
       //store.add_user(&new_id, 0, token, "John Doe");
       gui.play_sound(SOUND_ERROR);
@@ -172,11 +210,12 @@ void loop() {
 
   uint8_t requests;
   uint8_t rfid[12];
-  if(gui.query_requests(&requests, rfid)){
+  char name[25];
+  if(gui.query_requests(&requests, rfid, name)){
     Serial.printf("Fulfilling requests %X\n", requests);
     if(requests & REQUEST_NEW_USER){
       uint16_t new_id;
-      store.add_user(&new_id, AUTH_USER, rfid, "John Doe");
+      store.add_user(&new_id, AUTH_USER, rfid, name);
     }
   }
 }
@@ -206,5 +245,16 @@ void send_input_to_gui(){
     gui.handle_input(INPUT_DOWN, AFTER_INPUT);
     down_pressed = false;
   }
+}
+
+bool check_for_users(){
+  any_user_active = false;
+  for(uint16_t user : active_users){
+    if(user != 0){
+      any_user_active = true;
+      return true;
+    }
+  }
+  return false;
 }
 

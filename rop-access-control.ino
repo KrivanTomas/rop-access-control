@@ -35,9 +35,9 @@
 // #define ENC_CLK 4
 // #define ENC_DT 0
 // #define ENC_SW 2
-#define BTN_OK 26
-#define BTN_UP 25
-#define BTN_DOWN 27
+#define BTN_OK 0
+#define BTN_UP 2
+#define BTN_DOWN 4
 
 #define RFID_UART_PORT 2
 

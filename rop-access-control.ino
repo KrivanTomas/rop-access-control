@@ -1,11 +1,3 @@
-//  ________ _________  _______   ________   ___  __    ________     
-// |\   ____\\___   ___\\  ___ \ |\   ___  \|\  \|\  \ |\   __  \    
-// \ \  \___\|___ \  \_\ \   __/|\ \  \\ \  \ \  \/  /|\ \  \|\  \   
-//  \ \  \       \ \  \ \ \  \_|/_\ \  \\ \  \ \   ___  \ \  \\\  \  
-//   \ \  \____   \ \  \ \ \  \_|\ \ \  \\ \  \ \  \\ \  \ \  \\\  \ 
-//    \ \_______\  \ \__\ \ \_______\ \__\\ \__\ \__\\ \__\ \_______\
-//     \|_______|   \|__|  \|_______|\|__| \|__|\|__| \|__|\|_______|                                            
-//
 // Made by: Tomáš Křivan
 //
 // some sources:
@@ -13,23 +5,9 @@
 // RTClib: https://www.elecrow.com/wiki/index.php?title=File:RTC.zip
 
 
-
-// TODO setting
-// date and time (timezones?)
-// 
-
-
-// SOON
-// text edit
-// new user screen
-// usage database
-// user display total time
-
-
 #define SERIAL_BAUD 115200
 #define RFID_BAUD 9600
 
-#define BUZZER_PIN 12
 
 //encoder
 // #define ENC_CLK 4
@@ -38,9 +16,10 @@
 #define BTN_OK 0
 #define BTN_UP 2
 #define BTN_DOWN 4
+#define BUZZER_PIN 12
+#define RELAY_PIN 15
 
 #define RFID_UART_PORT 2
-
 #define SDCARD_CS 5
 
 //rfid
@@ -86,6 +65,8 @@ bool ui_request = false;
 
 #define MAX_ACTIVE_USERS 30
 uint16_t active_users[MAX_ACTIVE_USERS];
+uint16_t user_use_time[MAX_ACTIVE_USERS];
+unsigned long second_timer;
 bool any_user_active = false;
 
 void setup() {
@@ -99,11 +80,13 @@ void setup() {
   gui.begin(&lcd, &rtc, &store, BUZZER_PIN);
 
   pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(RELAY_PIN, OUTPUT);
   pinMode(BTN_OK, INPUT_PULLUP);
   pinMode(BTN_UP, INPUT_PULLUP);
   pinMode(BTN_DOWN, INPUT_PULLUP);
 
   rfid_last_read = millis();
+  second_timer = millis();
   rfid_void_frag = true;
 }
 
@@ -173,8 +156,15 @@ void loop() {
         for(int i = 0; i < MAX_ACTIVE_USERS; i++){
           if(active_users[i] == id){
             active_users[i] = 0;
+            custom_data[0] = user_use_time[i] << 8 & 0xFF;
+            custom_data[1] = user_use_time[i] << 0 & 0xFF;
+            char buffer[20];
+            
+            Serial.println("use time");
+            Serial.println(user_use_time[i]); // test
           }
         }  
+        
         store.record_event(id, EVENT_LEAVE, custom_data);
         tone(BUZZER_PIN, 200, 50);
       }else {
@@ -182,10 +172,11 @@ void loop() {
         for(int i = 0; i < MAX_ACTIVE_USERS; i++){
           if(active_users[i] == 0){
            active_users[i] = id;
+           user_use_time[i] = 0;
            break;
           }
         }
-        store.record_event(id, EVENT_JOIN, custom_data);
+        //store.record_event(id, EVENT_JOIN, custom_data);
       }
 
       gui.set_operation(check_for_users());
@@ -218,6 +209,11 @@ void loop() {
       store.add_user(&new_id, AUTH_USER, rfid, name);
     }
   }
+
+  if(millis() - second_timer >= 1000){
+    tick_users();
+    second_timer = millis();
+  }
 }
 
 void send_input_to_gui(){
@@ -247,14 +243,36 @@ void send_input_to_gui(){
   }
 }
 
+void tick_users(){
+  for(uint8_t i = 0; i < MAX_ACTIVE_USERS; i++){
+    if(active_users[i] != 0){
+      if(user_use_time[i] >= 7200){ //2 hours
+        // unsign user
+        uint8_t custom_data[20];
+        for(int i = 0; i < 20; i++){
+          custom_data[i] = 0;
+        }
+        custom_data[0] = user_use_time[i] << 8 & 0xFF;
+        custom_data[1] = user_use_time[i] << 0 & 0xFF;
+        store.record_event(active_users[i], EVENT_LEAVE, custom_data);
+        active_users[i] = 0;
+        gui.set_operation(check_for_users());
+      }
+      user_use_time[i]++;
+    }
+  }
+}
+
 bool check_for_users(){
   any_user_active = false;
   for(uint16_t user : active_users){
     if(user != 0){
       any_user_active = true;
+      digitalWrite(RELAY_PIN, HIGH);
       return true;
     }
   }
+  digitalWrite(RELAY_PIN, LOW);
   return false;
 }
 

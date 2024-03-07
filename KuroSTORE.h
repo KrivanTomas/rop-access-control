@@ -27,6 +27,7 @@ class KuroSTORE
     bool check_connection();
     void add_user(uint16_t* id, uint8_t privilage, uint8_t* rfid, char* name);
     void record_event(uint16_t user_id, uint8_t event_type, uint8_t custom_data[20]);
+    bool get_user_event(uint16_t user_id, uint16_t offset, uint16_t* event_id, uint8_t* event_type, uint64_t* unix_time, char date_string[19], uint8_t custom_data[20]);
     bool get_user_by_id(uint16_t id, uint8_t* privilage, uint8_t** rfid, char** name);
     bool get_user_by_static_id(uint16_t id, uint8_t* privilage, uint8_t** rfid, char** name);
     bool get_user_by_rfid(uint8_t* rfid, uint16_t* id, uint8_t* privilage, char** name);

@@ -76,7 +76,7 @@ void KuroSTORE::begin(uint8_t sdcard_cs, RTC_DS1307* rtc){
       }
     }
     else {
-      File values_r = SD.open("/values.dat", FILE_WRITE);
+      File values_r = SD.open("/values.dat", FILE_READ);
       last_event_address = (uint16_t)values_r.read() << 8 | (uint16_t)values_r.read();
       values_r.close();
     }
@@ -256,14 +256,11 @@ void KuroSTORE::record_event(uint16_t user_id, uint8_t event_type, uint8_t custo
   
   Serial.printf("Writing new event at adress 0x%X\n", address);
   file_w.seek(address); // does not go back and appends anyway (╯°□°）╯︵ ┻━┻
-
   file_w.write(last_event_address << 8 & 0xFF);
   file_w.write(last_event_address << 0 & 0xFF);
-
   file_w.write(user_id << 8 & 0xFF);
   file_w.write(user_id << 0 & 0xFF);
   file_w.write(event_type);
-
   DateTime now = _rtc->now();
   uint64_t unix = now.unixtime();
   //Serial.println(unix);
@@ -282,11 +279,88 @@ void KuroSTORE::record_event(uint16_t user_id, uint8_t event_type, uint8_t custo
   for(int i = 0; i < 20; i++){
     file_w.write(custom_data[i]);
   }
+  Serial.printf("Should be the same x%X == x%X\n\n",  base_address, file_w.position() - 51);
   file_w.close();
-  last_event_address++;
+  Serial.println("last event");
+  Serial.println(last_event_address); // test
+  if(last_event_address == UINT16_MAX){
+    last_event_address = 0;
+  }
+  else {
+    last_event_address++;
+  }
 
   File values_w = SD.open("/values.dat", FILE_WRITE);
   values_w.write(last_event_address << 8 & 0xFF);
   values_w.write(last_event_address << 0 & 0xFF);
+
+
   values_w.close();
+}
+
+// 2 bytes event_id | 2 bytes user_id | 1 byte event_type | 8 bytes unix time | 19 bytes ISO 8601 date string YYYY-MM-DDTHH:mm:ss | 20 bytes custom data => 52 bytes
+bool KuroSTORE::get_user_event(uint16_t user_id, uint16_t offset, uint16_t* event_id, uint8_t* event_type, uint64_t* unix_time, char date_string[19], uint8_t custom_data[20]){
+  File file_r = SD.open("/events.dat", FILE_READ);
+
+
+  uint16_t event_address = last_event_address;
+  file_r.read();
+  unsigned long file_size = file_r.size();
+  unsigned long base_address = file_r.position() - 1; // 2 bytes foward from begining for some reason
+  char *buffer = new char[52];
+
+  Serial.printf("file_size %i\n", file_size);
+  Serial.printf("base_address %i\n", base_address);
+  bool down = true;
+  // one read cycle
+  while(true){
+   
+    unsigned long address = base_address + 52 * event_address;
+
+    Serial.printf("Reading event at x%X\n", address);
+
+    file_r.seek(address);
+    file_r.readBytes(buffer, 52);
+    if(buffer[2] == (user_id << 8 & 0xFF) && buffer[3] == (user_id << 0 & 0xFF)){
+      if(offset != 0) {
+        offset--;
+        continue;
+      }
+      *event_id = (uint16_t)buffer[0] << 8 | buffer[1];
+      *event_type = buffer[4];
+      *unix_time = 0;
+      for(int i = 0; i < 8; i++){
+        *unix_time |= (uint64_t)buffer[5 + (7 - i)] << 8 * i;
+      }
+      for(int i = 0; i < 19; i++){
+        date_string[i] = buffer[13 + i];
+      }
+      for(int i = 0; i < 20; i++){
+        custom_data[i] = buffer[32 + i];
+      }
+
+      delete[] buffer;
+      file_r.close();
+      return true;
+    }
+
+    if(event_address == 0){
+      down = false;
+      event_address = last_event_address;
+    }
+    if(down){
+      event_address--;
+    }
+    else {
+      event_address++;
+      if (event_address - last_event_address > 2000) {
+        return false;
+      }
+    }
+  }
+
+  // end
+  delete[] buffer;
+  file_r.close();
+  return false;
 }

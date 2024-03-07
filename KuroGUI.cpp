@@ -38,7 +38,6 @@ void KuroGUI::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, KuroSTORE* store, u
   authority_request = AUTH_NONE;
   gui_requests = 0;
   create_state(HOME_SCREEN);
-  //play_sound(SOUND_COMPLETE);
 }
 
 void KuroGUI::create_state(uint8_t state) {
@@ -327,7 +326,20 @@ void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
           create_state(USERS_MENU);
           break;
         }
-        show_toast("Nah", 200);
+        uint16_t event_id;
+        uint8_t event_type;
+        uint64_t unix_time;
+        char date_string[19];
+        uint8_t custom_data_out[20];
+        if(_store->get_user_event(u_cache1, 0, &event_id, &event_type, &unix_time, date_string, custom_data_out)){
+          char bruf[20];
+          sprintf(bruf, "%is", (uint16_t)custom_data_out[1] << 8 | custom_data_out[0]);
+          show_toast(bruf, 500);
+        }
+        else {
+          Serial.println("BAD READ");
+          show_toast("BAD READ", 200);
+        }
       }
       if(input == INPUT_UP && u_cache1 > 1){
         u_cache1--;

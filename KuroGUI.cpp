@@ -332,9 +332,18 @@ void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
         char date_string[19];
         uint8_t custom_data_out[20];
         if(_store->get_user_event(u_cache1, 0, &event_id, &event_type, &unix_time, date_string, custom_data_out)){
-          char bruf[20];
-          sprintf(bruf, "%is", (uint16_t)custom_data_out[1] << 8 | custom_data_out[0]);
-          show_toast(bruf, 500);
+          char bruf[20] = "last 00:00 00.00.";
+          bruf[5] = date_string[11];
+          bruf[6] = date_string[12];
+          bruf[8] = date_string[14];
+          bruf[9] = date_string[15];
+          bruf[11] = date_string[8];
+          bruf[12] = date_string[9];
+          bruf[14] = date_string[5];
+          bruf[15] = date_string[6];
+          //sprintf(bruf, "last %s i:%2 i", date_string);
+          show_toast(bruf, 5000);
+          //show_toast(date_string, 2000);
         }
         else {
           Serial.println("BAD READ");

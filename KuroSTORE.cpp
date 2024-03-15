@@ -252,7 +252,7 @@ void KuroSTORE::record_event(uint16_t user_id, uint8_t event_type, uint8_t custo
 
   unsigned long address = base_address + 52 * last_event_address;
 
-  File file_w = SD.open("/events.dat", FILE_APPEND);
+  File file_w = SD.open("/events.dat", FILE_WRITE);
   
   Serial.printf("Writing new event at adress 0x%X\n", address);
   file_w.seek(address); // does not go back and appends anyway (╯°□°）╯︵ ┻━┻
@@ -317,7 +317,7 @@ bool KuroSTORE::get_user_event(uint16_t user_id, uint16_t offset, uint16_t* even
    
     unsigned long address = base_address + 52 * event_address;
 
-    Serial.printf("Reading event at x%X\n", address);
+    //Serial.printf("Reading event at x%X\n", address);
 
     file_r.seek(address);
     file_r.readBytes(buffer, 52);

@@ -7,9 +7,9 @@
 //  Made by Tomáš Křivan
 
 #include "Arduino.h"
-#include "KuroUTIL.h"
+#include "UtilROP.h"
 
-char* KuroUTIL::de_accent_utf8(char* text, uint8_t length){
+char* UtilROP::de_accent_utf8(char* text, uint8_t length){
   char* out = new char[length];
   char control = 0;
   uint8_t offset = 0;
@@ -102,7 +102,7 @@ char* KuroUTIL::de_accent_utf8(char* text, uint8_t length){
   return out;
 }
 
-char* KuroUTIL::fill_space(char* text, uint8_t length){
+char* UtilROP::fill_space(char* text, uint8_t length){
   char* output = new char[length];
   for(int i = 0; i < length; i++){
     if(text[i] == 0x0){ // could be janky

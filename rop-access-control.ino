@@ -1,3 +1,4 @@
+// rop-access-control.ino
 // Made by: Tomáš Křivan
 //
 // some sources:
@@ -9,10 +10,6 @@
 #define RFID_BAUD 9600
 
 
-//encoder
-// #define ENC_CLK 4
-// #define ENC_DT 0
-// #define ENC_SW 2
 #define BTN_OK 0
 #define BTN_UP 2
 #define BTN_DOWN 4
@@ -24,7 +21,7 @@
 
 //rfid
 #define RFID_TOKEN_LENGTH 12
-#define VOID_DURATION 500
+#define DISCARD_DURATION 500
 
 //common libraries
 //#include "SPI.h"
@@ -44,16 +41,16 @@
 #include "RTClib.h"
 
 //Custom libraries
-#include "KuroRFID.h"
-#include "KuroGUI.h"
-#include "KuroSTORE.h"
-#include "KuroUTIL.h"
+#include "RFIDROP.h"
+#include "GUIROP.h"
+#include "DataStoreROP.h"
+#include "UtilROP.h"
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);           // I2C address 0x27, 16 column and 2 rows
 HardwareSerial rfid_serial(RFID_UART_PORT);   // Serial port 2
 RTC_DS1307 rtc;
-KuroGUI gui;
-KuroSTORE store;
+GUIROP gui;
+DataStoreROP dataStore;
 
 unsigned long rfid_last_read;
 bool rfid_void_frag;
@@ -65,7 +62,7 @@ bool ui_request = false;
 
 #define MAX_ACTIVE_USERS 30
 uint16_t active_users[MAX_ACTIVE_USERS];
-uint16_t user_use_time[MAX_ACTIVE_USERS];
+uint16_t active_users_time[MAX_ACTIVE_USERS];
 unsigned long second_timer;
 bool any_user_active = false;
 
@@ -76,8 +73,8 @@ void setup() {
 
   Wire.begin();
   rtc.begin();
-  store.begin(SDCARD_CS, &rtc);
-  gui.begin(&lcd, &rtc, &store, BUZZER_PIN);
+  dataStore.begin(SDCARD_CS, &rtc);
+  gui.begin(&lcd, &rtc, &dataStore, BUZZER_PIN);
 
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(RELAY_PIN, OUTPUT);
@@ -96,12 +93,12 @@ bool down_pressed = false;
 
 void loop() {
  
-  // if(!store.check_connection()){ // TODO dont do this
+  // if(!dataStore.check_connection()){ // TODO dont do this
   //   gui.show_toast("NO SD");
   // }
 
   uint8_t token[RFID_TOKEN_LENGTH];
-  if (KuroRFID::void_frag(&rfid_serial, &rfid_void_frag, &rfid_last_read, VOID_DURATION) && KuroRFID::read_token_from_uart(&rfid_serial, token)) {
+  if (RFIDROP::discard_frag(&rfid_serial, &rfid_void_frag, &rfid_last_read, DISCARD_DURATION) && RFIDROP::read_token_from_uart(&rfid_serial, token)) {
     uint16_t id;
     char* name;
     uint8_t privilage;
@@ -115,7 +112,7 @@ void loop() {
         gui.play_sound(SOUND_COMPLETE);
         gui.comply_with_authorization(token);
       }
-      else if(store.get_user_by_rfid(token, &id, &privilage, &name)){
+      else if(dataStore.get_user_by_rfid(token, &id, &privilage, &name)){
         if(privilage >= authority_requirement){
           Serial.println("Access granted");
           gui.play_sound(SOUND_COMPLETE);
@@ -134,10 +131,10 @@ void loop() {
         gui.cancel_authorization();
       }
     }
-    else if(store.get_user_by_rfid(token, &id, &privilage, &name)){
+    else if(dataStore.get_user_by_rfid(token, &id, &privilage, &name)){
       Serial.printf("id:%d name:%s\n", id, name);
 
-      char* lcd_name = KuroUTIL::de_accent_utf8(name, 25);
+      char* lcd_name = UtilROP::de_accent_utf8(name, 25);
       
       uint8_t custom_data[20];
       for(int i = 0; i < 20; i++){
@@ -156,27 +153,27 @@ void loop() {
         for(int i = 0; i < MAX_ACTIVE_USERS; i++){
           if(active_users[i] == id){
             active_users[i] = 0;
-            custom_data[0] = user_use_time[i] << 8 & 0xFF;
-            custom_data[1] = user_use_time[i] << 0 & 0xFF;
+            custom_data[0] = active_users_time[i] << 8 & 0xFF;
+            custom_data[1] = active_users_time[i] << 0 & 0xFF;
             char buffer[20];
             
             Serial.println("use time");
-            Serial.println(user_use_time[i]); // test
+            Serial.println(active_users_time[i]); // test
           }
         }  
         
-        store.record_event(id, EVENT_LEAVE, custom_data);
+        dataStore.record_event(id, EVENT_LEAVE, custom_data);
         tone(BUZZER_PIN, 200, 50);
       }else {
         gui.show_toast(lcd_name);
         for(int i = 0; i < MAX_ACTIVE_USERS; i++){
           if(active_users[i] == 0){
            active_users[i] = id;
-           user_use_time[i] = 0;
+           active_users_time[i] = 0;
            break;
           }
         }
-        //store.record_event(id, EVENT_JOIN, custom_data);
+        //dataStore.record_event(id, EVENT_JOIN, custom_data);
       }
 
       gui.set_operation(check_for_users());
@@ -189,7 +186,7 @@ void loop() {
       gui.show_toast("User not found");
       Serial.printf("unknown user rifd: %s\n", token);
       //uint16_t new_id;
-      //store.add_user(&new_id, 0, token, "John Doe");
+      //dataStore.add_user(&new_id, 0, token, "John Doe");
       gui.play_sound(SOUND_ERROR);
     }
     rfid_last_read = millis();
@@ -206,7 +203,7 @@ void loop() {
     Serial.printf("Fulfilling requests %X\n", requests);
     if(requests & REQUEST_NEW_USER){
       uint16_t new_id;
-      store.add_user(&new_id, AUTH_USER, rfid, name);
+      dataStore.add_user(&new_id, AUTH_USER, rfid, name);
     }
   }
 
@@ -246,19 +243,19 @@ void send_input_to_gui(){
 void tick_users(){
   for(uint8_t i = 0; i < MAX_ACTIVE_USERS; i++){
     if(active_users[i] != 0){
-      if(user_use_time[i] >= 7200){ //2 hours
+      if(active_users_time[i] >= 7200){ //2 hours
         // unsign user
         uint8_t custom_data[20];
         for(int i = 0; i < 20; i++){
           custom_data[i] = 0;
         }
-        custom_data[0] = user_use_time[i] << 8 & 0xFF;
-        custom_data[1] = user_use_time[i] << 0 & 0xFF;
-        store.record_event(active_users[i], EVENT_LEAVE, custom_data);
+        custom_data[0] = active_users_time[i] << 8 & 0xFF;
+        custom_data[1] = active_users_time[i] << 0 & 0xFF;
+        dataStore.record_event(active_users[i], EVENT_LEAVE, custom_data);
         active_users[i] = 0;
         gui.set_operation(check_for_users());
       }
-      user_use_time[i]++;
+      active_users_time[i]++;
     }
   }
 }

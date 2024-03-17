@@ -1,19 +1,14 @@
-//  ██╗  ██╗██╗   ██╗██████╗  ██████╗     ██╗ ██████╗ ██╗   ██╗██╗
-//  ██║ ██╔╝██║   ██║██╔══██╗██╔═══██╗   ██╔╝██╔════╝ ██║   ██║██║
-//  █████╔╝ ██║   ██║██████╔╝██║   ██║  ██╔╝ ██║  ███╗██║   ██║██║
-//  ██╔═██╗ ██║   ██║██╔══██╗██║   ██║ ██╔╝  ██║   ██║██║   ██║██║
-//  ██║  ██╗╚██████╔╝██║  ██║╚██████╔╝██╔╝   ╚██████╔╝╚██████╔╝██║
-//  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═════╝  ╚═════╝ ╚═╝
+//  GUIROP.h
 //  Made by Tomáš Křivan
 
-#ifndef KuroGUI_h
-#define KuroGUI_h
+#ifndef GUIROP_h
+#define GUIROP_h
 #include "Arduino.h"
 #include <LiquidCrystal_I2C.h>
-#include "KuroUTIL.h"
+#include "UtilROP.h"
 #include "RTClib.h"
 
-#include "KuroSTORE.h" //patchwork
+#include "DataStoreROP.h" //patchwork
 
 #define MENU_SELECT_COUNT  6
 
@@ -70,12 +65,12 @@
 
 #define REQUEST_NEW_USER  0b10000000
 
-class KuroGUI
+class GUIROP
 {
   public:
-    KuroGUI();
-    ~KuroGUI();
-    void begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, KuroSTORE* store,uint8_t buzzer_pin);
+    GUIROP();
+    ~GUIROP();
+    void begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, DataStoreROP* dataStore,uint8_t buzzer_pin);
     void update();
     void set_operation(bool is_on);
     void handle_input(uint8_t input, uint8_t input_state = BEFORE_INPUT);
@@ -88,7 +83,7 @@ class KuroGUI
   private:
     LiquidCrystal_I2C* _lcd;
     RTC_DS1307* _rtc;
-    KuroSTORE* _store;
+    DataStoreROP* _store;
     uint8_t _buzzer_pin;
     uint8_t ui_state;
     unsigned long ui_timer1;

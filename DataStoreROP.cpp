@@ -1,31 +1,23 @@
-//  ██╗  ██╗██╗   ██╗██████╗  ██████╗     ██╗███████╗████████╗ ██████╗ ██████╗ ███████╗
-//  ██║ ██╔╝██║   ██║██╔══██╗██╔═══██╗   ██╔╝██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗██╔════╝
-//  █████╔╝ ██║   ██║██████╔╝██║   ██║  ██╔╝ ███████╗   ██║   ██║   ██║██████╔╝█████╗  
-//  ██╔═██╗ ██║   ██║██╔══██╗██║   ██║ ██╔╝  ╚════██║   ██║   ██║   ██║██╔══██╗██╔══╝  
-//  ██║  ██╗╚██████╔╝██║  ██║╚██████╔╝██╔╝   ███████║   ██║   ╚██████╔╝██║  ██║███████╗
-//  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝    ╚══════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝
+//  DataStoreROP.cpp
 //  Made by Tomáš Křivan
 
 //https://randomnerdtutorials.com/esp32-microsd-card-arduino/
 
 #include <Arduino.h>
 #include <HardwareSerial.h>
-#include "KuroSTORE.h"
-#include "KuroUTIL.h"
-//#include "FS.h"
-//#include <FS.h>
+#include "DataStoreROP.h"
+#include "UtilROP.h"
 #include <SD.h>
 #include "RTClib.h"
-//#include "SPI.h"
 
 #define BLOCK_SIZE 512
 
-KuroSTORE::KuroSTORE(){
+DataStoreROP::DataStoreROP(){
   sd_connected = false;
   return;
 }
 
-void KuroSTORE::begin(uint8_t sdcard_cs, RTC_DS1307* rtc){
+void DataStoreROP::begin(uint8_t sdcard_cs, RTC_DS1307* rtc){
   _rtc = rtc;
   _sdcard_cs = sdcard_cs;
   last_event_address = 0;
@@ -83,7 +75,7 @@ void KuroSTORE::begin(uint8_t sdcard_cs, RTC_DS1307* rtc){
   }
 }
 
-bool KuroSTORE::connect(){
+bool DataStoreROP::connect(){
   if(!SD.begin(_sdcard_cs)){
     Serial.println("No/Corrupted SD card attached");
     return false;
@@ -93,12 +85,12 @@ bool KuroSTORE::connect(){
   return true;
 }
 
-bool KuroSTORE::check_connection(){
+bool DataStoreROP::check_connection(){
   sd_connected = SD.exists("/");
   return sd_connected;
 }
 
-bool KuroSTORE::get_user_by_id(uint16_t id, uint8_t* privilage, uint8_t** rfid, char** name){
+bool DataStoreROP::get_user_by_id(uint16_t id, uint8_t* privilage, uint8_t** rfid, char** name){
   File file_r = SD.open("/users.dat", FILE_READ);
   unsigned long file_size = file_r.size();
   bool user_found = false;
@@ -129,7 +121,7 @@ bool KuroSTORE::get_user_by_id(uint16_t id, uint8_t* privilage, uint8_t** rfid, 
 }
 
 // not tested
-bool KuroSTORE::get_user_by_static_id(uint16_t id, uint8_t* privilage, uint8_t** rfid, char** name){ 
+bool DataStoreROP::get_user_by_static_id(uint16_t id, uint8_t* privilage, uint8_t** rfid, char** name){ 
   File file_r = SD.open("/users.dat", FILE_READ);
   unsigned long file_size = file_r.size();
   unsigned long start = file_r.position();
@@ -153,7 +145,7 @@ bool KuroSTORE::get_user_by_static_id(uint16_t id, uint8_t* privilage, uint8_t**
   return true;
 }
 
-bool KuroSTORE::get_user_by_rfid(uint8_t* rfid, uint16_t* id, uint8_t* privilage, char** name){
+bool DataStoreROP::get_user_by_rfid(uint8_t* rfid, uint16_t* id, uint8_t* privilage, char** name){
   File file_r = SD.open("/users.dat", FILE_READ);
   unsigned long file_size = file_r.size();
   unsigned long user_addr;
@@ -193,7 +185,7 @@ bool KuroSTORE::get_user_by_rfid(uint8_t* rfid, uint16_t* id, uint8_t* privilage
 
 
 // 2 bytes id | 1 byte privilage | 12 bytes rfid, 25 bytes name => 40 bytes/user raw, max 65 535 users (id 0x0000 for empty entry)
-void KuroSTORE::add_user(uint16_t* id, uint8_t privilage, uint8_t* rfid, char* name){
+void DataStoreROP::add_user(uint16_t* id, uint8_t privilage, uint8_t* rfid, char* name){
   File file_r = SD.open("/users.dat", FILE_READ);
 
   unsigned long file_size = file_r.size();
@@ -234,7 +226,7 @@ void KuroSTORE::add_user(uint16_t* id, uint8_t privilage, uint8_t* rfid, char* n
   file_w.close();
 }
 
-bool KuroSTORE::verify_authority(uint16_t id, uint8_t authority_requirement){
+bool DataStoreROP::verify_authority(uint16_t id, uint8_t authority_requirement){
   char* name;
   uint8_t* rfid;
   uint8_t privilage;
@@ -243,7 +235,7 @@ bool KuroSTORE::verify_authority(uint16_t id, uint8_t authority_requirement){
 }
 // 2 bytes event_id | 2 bytes user_id | 1 byte event_type | 8 bytes unix time | 19 bytes ISO 8601 date string YYYY-MM-DDTHH:mm:ss | 20 bytes custom data => 52 bytes
 // rollover recording
-void KuroSTORE::record_event(uint16_t user_id, uint8_t event_type, uint8_t custom_data[20]){
+void DataStoreROP::record_event(uint16_t user_id, uint8_t event_type, uint8_t custom_data[20]){
   File file_r = SD.open("/events.dat", FILE_READ);
 
   file_r.read();
@@ -299,7 +291,7 @@ void KuroSTORE::record_event(uint16_t user_id, uint8_t event_type, uint8_t custo
 }
 
 // 2 bytes event_id | 2 bytes user_id | 1 byte event_type | 8 bytes unix time | 19 bytes ISO 8601 date string YYYY-MM-DDTHH:mm:ss | 20 bytes custom data => 52 bytes
-bool KuroSTORE::get_user_event(uint16_t user_id, uint16_t offset, uint16_t* event_id, uint8_t* event_type, uint64_t* unix_time, char date_string[19], uint8_t custom_data[20]){
+bool DataStoreROP::get_user_event(uint16_t user_id, uint16_t offset, uint16_t* event_id, uint8_t* event_type, uint64_t* unix_time, char date_string[19], uint8_t custom_data[20]){
   File file_r = SD.open("/events.dat", FILE_READ);
 
 

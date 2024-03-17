@@ -1,38 +1,33 @@
-//  ██╗  ██╗██╗   ██╗██████╗  ██████╗     ██╗ ██████╗ ██╗   ██╗██╗
-//  ██║ ██╔╝██║   ██║██╔══██╗██╔═══██╗   ██╔╝██╔════╝ ██║   ██║██║
-//  █████╔╝ ██║   ██║██████╔╝██║   ██║  ██╔╝ ██║  ███╗██║   ██║██║
-//  ██╔═██╗ ██║   ██║██╔══██╗██║   ██║ ██╔╝  ██║   ██║██║   ██║██║
-//  ██║  ██╗╚██████╔╝██║  ██║╚██████╔╝██╔╝   ╚██████╔╝╚██████╔╝██║
-//  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═════╝  ╚═════╝ ╚═╝
+//  GUIROP.cpp
 //  Made by Tomáš Křivan
 
 #include "Arduino.h"
 #include <LiquidCrystal_I2C.h>
-#include "KuroGUI.h"
-#include "KuroUTIL.h"
+#include "GUIROP.h"
+#include "UtilROP.h"
 #include "RTClib.h"
 
 
-#include "KuroSTORE.h" //patchwork
+#include "DataStoreROP.h" //patchwork
 
 #define MAIN_MENU_ITEM_COUNT 6
 #define USERS_MENU_ITEM_COUNT 4
 #define TOAST_DEFAULT_TIMEOUT 1000
 
-KuroGUI::KuroGUI() {
+GUIROP::GUIROP() {
   return;
 }
 
-KuroGUI::~KuroGUI() {
+GUIROP::~GUIROP() {
   delete[] icon_buffer;
   return;
 }
 
-void KuroGUI::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, KuroSTORE* store, uint8_t buzzer_pin){
+void GUIROP::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, DataStoreROP* dataStore, uint8_t buzzer_pin) {
   _buzzer_pin = buzzer_pin;
   _lcd = lcd;
   _rtc = rtc;
-  _store = store;
+  _store = dataStore;
   text_inputed = false;
   icon_buffer = new uint8_t[8]{NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
   authority_request = AUTH_NONE;
@@ -40,10 +35,20 @@ void KuroGUI::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, KuroSTORE* store, u
   create_state(HOME_SCREEN);
 }
 
-void KuroGUI::create_state(uint8_t state) {
+/**
+ * Set and create a new state-machine state
+ * 
+ * Sets the new `state` to the `ui-state` variable and executes the corresponding 
+ * commands (like lcd or cache commands) to initialize and create a state
+ * 
+ * If the `state` provided is not defined it will default to the `NO_MENU` state (value `0x0`)
+ * 
+ * @param state The state to set
+*/
+void GUIROP::create_state(uint8_t state) {
   clear_icon_buffer();
   ui_state = state == AUTHORIZATION ? ui_state : state;
-  switch(state){
+  switch(state) {
     case NO_MENU: {
       _lcd->clear();
       _lcd->backlight();
@@ -87,7 +92,7 @@ void KuroGUI::create_state(uint8_t state) {
       break;
     }
     case AUTHORIZATION: {
-      if(authority_request == AUTH_NONE){
+      if(authority_request == AUTH_NONE) {
         Serial.println("No authority set before creating state!");
         create_state(NO_MENU);
       }
@@ -95,7 +100,7 @@ void KuroGUI::create_state(uint8_t state) {
       ui_state = state;
       _lcd->clear();
       _lcd->backlight();
-      if(authority_request == AUTH_ANY){
+      if(authority_request == AUTH_ANY) {
         _lcd->print("Recording tag ...");
         _lcd->setCursor(0, 1);
         _lcd->print("Awaiting RFID");
@@ -149,7 +154,7 @@ void KuroGUI::create_state(uint8_t state) {
       u_cache1 = 32; // char
       u_cache2 = 0; // column
       u_cache3 = 0; // last char
-      for(int i = 0; i < 25; i++){
+      for(int i = 0; i < 25; i++) {
         user_name[i] = 0;
       }
       break;
@@ -161,13 +166,16 @@ void KuroGUI::create_state(uint8_t state) {
   }
 }
 
-void KuroGUI::build_menu(uint8_t item_count){
+/**
+ * 
+*/
+void GUIROP::build_menu(uint8_t item_count) {
   uint8_t icon;
   uint8_t menu;
   char* desc;
   bool auth;
   uint8_t auth_value;
-  for(uint8_t i = 0; i < item_count; i++){
+  for(uint8_t i = 0; i < item_count; i++) {
     get_menu_item(i, &icon, &desc, &menu, &auth, &auth_value);
     write_icon(icon, i * 2, 0);
   }
@@ -179,15 +187,15 @@ void KuroGUI::build_menu(uint8_t item_count){
   _lcd->print(desc);
 }
 
-void KuroGUI::input_to_menu(uint8_t item_count, uint8_t input, uint8_t input_state){
+void GUIROP::input_to_menu(uint8_t item_count, uint8_t input, uint8_t input_state) {
   uint8_t icon;
   uint8_t menu;
   char* desc;
   bool auth;
   uint8_t auth_value;
   get_menu_item(u_cache1, &icon, &desc, &menu, &auth, &auth_value);
-  if(input == INPUT_OK){
-    if(auth){
+  if(input == INPUT_OK) {
+    if(auth) {
       u_cache2 = menu; // success menu
       authority_request = auth_value;
       create_state(AUTHORIZATION);
@@ -205,15 +213,15 @@ void KuroGUI::input_to_menu(uint8_t item_count, uint8_t input, uint8_t input_sta
   _lcd->print(desc);
 }
 
-void KuroGUI::update(){
-  switch(ui_state){
+void GUIROP::update() {
+  switch(ui_state) {
     case HOME_SCREEN: {
-      if(millis() - ui_timer1 > 1000){
+      if(millis() - ui_timer1 > 1000) {
         ui_timer1 = millis();
         b_cache1 = !b_cache1;
 
         DateTime now = _rtc->now();
-        if(b_cache2 != _is_on){
+        if(b_cache2 != _is_on) {
           b_cache2 = _is_on;
           _lcd->setCursor(0, 0);
           _lcd->printf("% 10s", b_cache2 ? "Powered on" : "On Standby");
@@ -224,23 +232,23 @@ void KuroGUI::update(){
           _lcd->setCursor(0, 1);
           _lcd->printf("%u\.%u\.%u", now.day(), now.month(), now.year());
         } 
-        else if (now.month() != u_cache2){
+        else if (now.month() != u_cache2) {
           _lcd->setCursor(11, 0);
           _lcd->printf("%2u%c%02u", now.hour(), b_cache1 ? ':' : ' ', now.minute());
           _lcd->setCursor(0, 1);
           _lcd->printf("%u\.%u", now.day(), now.month());
         }
-        else if (now.day() != u_cache3){
+        else if (now.day() != u_cache3) {
           _lcd->setCursor(11, 0);
           _lcd->printf("%2u%c%02u", now.hour(), b_cache1 ? ':' : ' ', now.minute());
           _lcd->setCursor(0, 1);
           _lcd->printf("%u", now.day());
         }
-        else if (now.hour() != u_cache4){
+        else if (now.hour() != u_cache4) {
           _lcd->setCursor(11, 0);
           _lcd->printf("%2u%c%02u", now.hour(), b_cache1 ? ':' : ' ', now.minute());
         }
-        else if (now.minute() != u_cache5){
+        else if (now.minute() != u_cache5) {
           _lcd->setCursor(13, 0);
           _lcd->printf("%c%02u", b_cache1 ? ':' : ' ', now.minute());
         }
@@ -252,14 +260,14 @@ void KuroGUI::update(){
       break;
     }
     case ADD_USER: {
-      if(millis() - ui_timer1 > 1000){
+      if(millis() - ui_timer1 > 1000) {
         gui_requests |= REQUEST_NEW_USER;
         create_state(USERS_MENU);
       }
       break;
     }
     case USERS_LIST: {
-      if(ui_timer1 > millis() && b_cache1){
+      if(ui_timer1 > millis() && b_cache1) {
         b_cache1 = false;
         u_cache1 = 1;
         _lcd->clear();
@@ -267,8 +275,8 @@ void KuroGUI::update(){
         uint8_t priv;
         uint8_t* rfid = new uint8_t[12];
         char* name = new char[25];
-        if(_store->get_user_by_static_id(u_cache1, &priv, &rfid, &name)){
-          char* lcd_name = KuroUTIL::de_accent_utf8(name, 25);
+        if(_store->get_user_by_static_id(u_cache1, &priv, &rfid, &name)) {
+          char* lcd_name = UtilROP::de_accent_utf8(name, 25);
           _lcd->printf("%d: %s", u_cache1, lcd_name);
           delete[] lcd_name;
         }
@@ -289,8 +297,8 @@ void KuroGUI::update(){
   }
 }
 
-void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
-  switch(ui_state){
+void GUIROP::handle_input(uint8_t input, uint8_t input_state) {
+  switch(ui_state) {
     case HOME_SCREEN: {
       if (input_state == BEFORE_INPUT) return;
       create_state(MAIN_MENU);
@@ -321,8 +329,8 @@ void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
         ui_timer1 = millis() + 500;
         return;
       }
-      if(input == INPUT_OK){
-        if(ui_timer1 < millis()){
+      if(input == INPUT_OK) {
+        if(ui_timer1 < millis()) {
           create_state(USERS_MENU);
           break;
         }
@@ -331,7 +339,7 @@ void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
         uint64_t unix_time;
         char date_string[19];
         uint8_t custom_data_out[20];
-        if(_store->get_user_event(u_cache1, 0, &event_id, &event_type, &unix_time, date_string, custom_data_out)){
+        if(_store->get_user_event(u_cache1, 0, &event_id, &event_type, &unix_time, date_string, custom_data_out)) {
           char bruf[20] = "last 00:00 00.00.";
           bruf[5] = date_string[11];
           bruf[6] = date_string[12];
@@ -350,14 +358,14 @@ void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
           show_toast("BAD READ", 200);
         }
       }
-      if(input == INPUT_UP && u_cache1 > 1){
+      if(input == INPUT_UP && u_cache1 > 1) {
         u_cache1--;
         _lcd->clear();
         uint8_t priv;
         uint8_t* rfid = new uint8_t[12];
         char* name = new char[25];
-        if(_store->get_user_by_static_id(u_cache1, &priv, &rfid, &name)){
-          char* lcd_name = KuroUTIL::de_accent_utf8(name, 25);
+        if(_store->get_user_by_static_id(u_cache1, &priv, &rfid, &name)) {
+          char* lcd_name = UtilROP::de_accent_utf8(name, 25);
           _lcd->printf("%d: %s", u_cache1, lcd_name);
           delete[] lcd_name;
         }
@@ -367,14 +375,14 @@ void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
         delete[] name;
         delete[] rfid;
       }
-      if(input == INPUT_DOWN){
+      if(input == INPUT_DOWN) {
         u_cache1++;
         _lcd->clear();
         uint8_t priv;
         uint8_t* rfid = new uint8_t[12];
         char* name = new char[25];
-        if(_store->get_user_by_static_id(u_cache1, &priv, &rfid, &name)){
-          char* lcd_name = KuroUTIL::de_accent_utf8(name, 25);
+        if(_store->get_user_by_static_id(u_cache1, &priv, &rfid, &name)) {
+          char* lcd_name = UtilROP::de_accent_utf8(name, 25);
           _lcd->printf("%d: %s", u_cache1, lcd_name);
           delete[] lcd_name;
         }
@@ -387,12 +395,12 @@ void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
       break;
     }
     case TEXT_EDIT: {
-      if (input_state == BEFORE_INPUT){
+      if (input_state == BEFORE_INPUT) {
         return;
       }
-      if(input == INPUT_OK){
+      if(input == INPUT_OK) {
         user_name[u_cache2] = (char)u_cache1;
-        if(u_cache3 == 32 && u_cache1 == 32){
+        if(u_cache3 == 32 && u_cache1 == 32) {
           _lcd->cursor_off();
           text_inputed = true;
           create_state(u_cache4);
@@ -402,12 +410,12 @@ void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
         u_cache1 = 32;
         u_cache2++;
       }
-      if(input == INPUT_UP){
+      if(input == INPUT_UP) {
         u_cache1--;
         if(u_cache1 == 31) u_cache1 = 122;
         if(u_cache1 == 96) u_cache1 = 32;
       }
-      if(input == INPUT_DOWN){
+      if(input == INPUT_DOWN) {
         u_cache1++;
         if(u_cache1 == 33) u_cache1 = 97;
         if(u_cache1 == 123) u_cache1 = 32;
@@ -419,39 +427,39 @@ void KuroGUI::handle_input(uint8_t input, uint8_t input_state){
   }
 }
 
-bool KuroGUI::query_requests(uint8_t* requests, uint8_t rfid[12], char name[25]){
+bool GUIROP::query_requests(uint8_t* requests, uint8_t rfid[12], char name[25]) {
   *requests = gui_requests;
   gui_requests = 0;
-  for(int i = 0; i < 12; i++){ // rfid_token will be freed at the end of the loop() function
+  for(int i = 0; i < 12; i++) { // rfid_token will be freed at the end of the loop() function
     rfid[i] = user_rfid_token[i];
   }
-  for(int i = 0; i < 25; i++){ // rfid_token will be freed at the end of the loop() function
+  for(int i = 0; i < 25; i++) { // rfid_token will be freed at the end of the loop() function
     name[i] = user_name[i];
   }
   return *requests;
 }
 
-void KuroGUI::comply_with_authorization(uint8_t rfid_token[12]){
+void GUIROP::comply_with_authorization(uint8_t rfid_token[12]) {
   authority_request = AUTH_NONE;
   if(ui_state != AUTHORIZATION) return;
-  for(int i = 0; i < 12; i++){ // rfid_token will be freed at the end of the loop() function
+  for(int i = 0; i < 12; i++) { // rfid_token will be freed at the end of the loop() function
     user_rfid_token[i] = rfid_token[i];
   }
   create_state(u_cache2); // success
 }
 
-void KuroGUI::cancel_authorization(){
+void GUIROP::cancel_authorization() {
   authority_request = AUTH_NONE;
   if(ui_state != AUTHORIZATION) return;
   create_state(u_cache1); // failure
 }
 
-bool KuroGUI::get_menu_item(uint8_t menu_index, uint8_t* _icon, char** _desc, uint8_t* _menu, bool* authorize, uint8_t* authority_value){
+bool GUIROP::get_menu_item(uint8_t menu_index, uint8_t* _icon, char** _desc, uint8_t* _menu, bool* authorize, uint8_t* authority_value) {
   *authorize = false;
   *authority_value = AUTH_NONE;
-  switch(ui_state){
+  switch(ui_state) {
     case MAIN_MENU: {
-      switch(menu_index){
+      switch(menu_index) {
         case 0: {
           *_icon = ICON_HOME;
           *_desc = "Home           ";
@@ -501,7 +509,7 @@ bool KuroGUI::get_menu_item(uint8_t menu_index, uint8_t* _icon, char** _desc, ui
       break;
     }
     case USERS_MENU: {
-      switch(menu_index){
+      switch(menu_index) {
         case 0: {
           *_icon = ICON_LEFT;
           *_desc = "Back           ";
@@ -547,37 +555,53 @@ bool KuroGUI::get_menu_item(uint8_t menu_index, uint8_t* _icon, char** _desc, ui
   return true;
 }
 
-bool KuroGUI::write_icon(uint8_t icon, uint8_t column, uint8_t row) {
+bool GUIROP::write_icon(uint8_t icon, uint8_t column, uint8_t row) {
+  uint8_t empty_buffer = 0;
   for(uint8_t i = 0; i < 8; i++) {
     if(icon_buffer[i] == icon) {
       _lcd->setCursor(column, row);
       _lcd->write(i);
       return true;
+    }else if (icon_buffer[i] == NULL) {
+      empty_buffer = i;
     }
-    if(icon_buffer[i] == NULL) {
-      create_icon(icon, i);
-      _lcd->setCursor(column, row); // https://forum.arduino.cc/t/is-it-possible-to-modify-my-custom-lcd-characters-in-the-main-loop/394713/3
-      _lcd->write(i);
-      return true;
-    }
+  }
+  if(icon_buffer[empty_buffer] == NULL) {
+    create_icon(icon, empty_buffer);
+    _lcd->setCursor(column, row); // https://forum.arduino.cc/t/is-it-possible-to-modify-my-custom-lcd-characters-in-the-main-loop/394713/3
+    _lcd->write(empty_buffer);
+    return true;
   }
   return false;
 }
 
-void KuroGUI::clear_icon_buffer() {
+void GUIROP::clear_icon_buffer() {
   for(uint8_t i = 0; i < 8; i++) {
     icon_buffer[i] = NULL;
   }
 }
 
-void KuroGUI::create_icon(uint8_t icon, uint8_t address) {
+/**
+ * Inerts the icon into the lcds custom character register and sets a reference of used icons in the `icon_buffer` array.
+ * 
+ * @param icon icon id to create
+ * @param address the index in the lcd register and `icon_buffer` array
+*/
+void GUIROP::create_icon(uint8_t icon, uint8_t address) {
   icon_buffer[address] = icon;
   uint8_t* icon_data = fetch_icon(icon);
   _lcd->createChar(address, icon_data);
   delete icon_data;
 }
 
-void KuroGUI::destroy_icon(uint8_t icon) {
+/**
+ * Destroys the reference of an icon in the `icon_buffer` array.
+ * 
+ * @note This does not delete the icon from the lcd custom character register. Using and address not refferenced in the `icon_buffer` may result in past icon being shown.
+ * 
+ * @param icon icon to be destoryed
+*/
+void GUIROP::destroy_icon(uint8_t icon) {
   for(uint8_t i = 0; i < 8; i++) {
     if(icon_buffer[i] == icon) {
       icon_buffer[i] = NULL;
@@ -586,7 +610,16 @@ void KuroGUI::destroy_icon(uint8_t icon) {
   }
 }
 
-bool KuroGUI::negate_icon(uint8_t icon) {
+/**
+ * Inverts the bit value of the icon.
+ * The icon must already be in the icon buffer for it to be inverted.
+ * 
+ * @note For reverting the icon to the original state, see GUIROP::restore_icon(uint8_t icon).
+ * 
+ * @param icon icon id to negate
+ * @returns If the icon is in buffer and has been negated.
+*/
+bool GUIROP::negate_icon(uint8_t icon) {
   for(uint8_t i = 0; i < 8; i++) {
     if(icon_buffer[i] == icon) {
       uint8_t* icon_data = fetch_icon(icon);
@@ -601,7 +634,16 @@ bool KuroGUI::negate_icon(uint8_t icon) {
   return false;
 }
 
-bool KuroGUI::restore_icon(uint8_t icon) {
+/**
+ * Reverts the icon to its original value (reverts invertion)
+ * The icon must already be in the icon buffer for it to be restored.
+ * 
+ * @note For inverting the icon see GUIROP::negate_icon(uint8_t icon).
+ * 
+ * @param icon icon id to restore
+ * @returns If the icon is in buffer and has been restored
+*/
+bool GUIROP::restore_icon(uint8_t icon) {
   for(uint8_t i = 0; i < 8; i++) {
     if(icon_buffer[i] == icon) {
       uint8_t* icon_data = fetch_icon(icon);
@@ -613,12 +655,26 @@ bool KuroGUI::restore_icon(uint8_t icon) {
   return false;
 }
 
-void KuroGUI::delete_char_at(uint8_t column, uint8_t row) {
+/**
+ * Sets the position to an empty space "` `".
+ * 
+ * @param column
+ * @param row
+*/
+void GUIROP::delete_char_at(uint8_t column, uint8_t row) {
   _lcd->setCursor(column, row);
   _lcd->write(' ');
 }
 
-uint8_t* KuroGUI::fetch_icon(uint8_t icon) {
+/**
+ * Creates a new character from a predifined list and returns a pointer to its location.
+ * 
+ * @note Serves as a way to save memory, saving custom characters in flash memory instead.
+ * 
+ * @param icon predifined icon id
+ * @return A pointer to the character array location.
+*/
+uint8_t* GUIROP::fetch_icon(uint8_t icon) {
   switch(icon) {
     case ICON_HOME: {
       return new uint8_t[8]{ B00000, B00100, B01110, B11111, B01010, B01110, B00000, B00000 };
@@ -711,8 +767,13 @@ uint8_t* KuroGUI::fetch_icon(uint8_t icon) {
   }
 }
 
-void KuroGUI::play_sound(uint8_t sound_id) {
-  switch(sound_id){
+/**
+ * Plays a melody from a predifined list.
+ * 
+ * @param sound_id the melody id
+*/
+void GUIROP::play_sound(uint8_t sound_id) {
+  switch(sound_id) {
     case SOUND_ERROR: {
       tone(_buzzer_pin, 587, 30);
       tone(_buzzer_pin, 30, 10);
@@ -748,7 +809,14 @@ void KuroGUI::play_sound(uint8_t sound_id) {
   }
 }
 
-bool KuroGUI::show_toast(char* message, uint16_t timeout){
+/**
+ * Shows a temporary message on the lcd.
+ * 
+ * @param message a string containing the message
+ * @param timeout how long a message is dissplayed in milliseconds
+ * @return If has been successfuly shown (not yet implemented, always true).
+*/
+bool GUIROP::show_toast(char* message, uint16_t timeout) {
   toast_timer = millis() + (timeout == 0 ? TOAST_DEFAULT_TIMEOUT : timeout);
   message_buffer = message;
   ui_toast_cache = ui_state != TOAST ? ui_state : ui_toast_cache;
@@ -756,11 +824,23 @@ bool KuroGUI::show_toast(char* message, uint16_t timeout){
   return true; // TODO return false when unable to show toast
 }
 
-bool KuroGUI::require_authorization(uint8_t* authority_requirement){
+/**
+ * Informs if the state maneger is awaiting authorization from the user, this function is to be used outside of this library.
+ * 
+ * @param authority_requirement an address to be set with the minimal authority level required.
+ * @returns If the state maneger is awaiting authorization from the user.
+*/
+bool GUIROP::require_authorization(uint8_t* authority_requirement) {
   *authority_requirement = authority_request;
   return authority_request >= AUTH_ANY;
 }
 
-void KuroGUI::set_operation(bool is_on){
+/**
+ * Sets a bool value for the `HOME_SCREEN` state when the relay is activated to inform the user on the lcd.
+ * 
+ * @deprecated This needs a better solution.
+ * @param is_on the state of the relay
+*/
+void GUIROP::set_operation(bool is_on) {
   _is_on = is_on;
 }

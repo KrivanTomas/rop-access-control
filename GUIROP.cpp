@@ -14,15 +14,29 @@
 #define USERS_MENU_ITEM_COUNT 4
 #define TOAST_DEFAULT_TIMEOUT 1000
 
+/**
+ * Class constructor
+*/
 GUIROP::GUIROP() {
   return;
 }
 
+/**
+ * Class destructor
+*/
 GUIROP::~GUIROP() {
   delete[] icon_buffer;
   return;
 }
 
+/**
+ * Inicializaiton function to be called in the `setup()` function.
+ * 
+ * @param lcd A pointer to the `LiquidCrystal_I2C` object
+ * @param rtc A pointer to the `RTC_DS1307` object
+ * @param dataStore A pointer to the `DataStoreROP` object
+ * @param buzzer_pin A pin number of a pre-set up buzzer
+*/
 void GUIROP::begin(LiquidCrystal_I2C* lcd, RTC_DS1307* rtc, DataStoreROP* dataStore, uint8_t buzzer_pin) {
   _buzzer_pin = buzzer_pin;
   _lcd = lcd;
@@ -166,9 +180,6 @@ void GUIROP::create_state(uint8_t state) {
   }
 }
 
-/**
- * 
-*/
 void GUIROP::build_menu(uint8_t item_count) {
   uint8_t icon;
   uint8_t menu;
@@ -213,6 +224,9 @@ void GUIROP::input_to_menu(uint8_t item_count, uint8_t input, uint8_t input_stat
   _lcd->print(desc);
 }
 
+/**
+ * Executes code for some states that are time depedant.
+*/
 void GUIROP::update() {
   switch(ui_state) {
     case HOME_SCREEN: {
@@ -555,6 +569,14 @@ bool GUIROP::get_menu_item(uint8_t menu_index, uint8_t* _icon, char** _desc, uin
   return true;
 }
 
+/**
+ * Writes a custom icon to the lcd, also checks if it is located in the `icon_buffer` and tries to call the `create_icon` function to create it.
+ * 
+ * @param icon The icon id to be written
+ * @param column
+ * @param row
+ * @returns If the write has been successful (can fail do to a full `icon_buffer`, so call the `clear_icon_buffer` or `destroy_icon` functions when the icons arent being used)
+*/
 bool GUIROP::write_icon(uint8_t icon, uint8_t column, uint8_t row) {
   uint8_t empty_buffer = 0;
   for(uint8_t i = 0; i < 8; i++) {
@@ -575,6 +597,11 @@ bool GUIROP::write_icon(uint8_t icon, uint8_t column, uint8_t row) {
   return false;
 }
 
+/**
+ * Clears the `icon_buffer` array (0x0).
+ * 
+ * Simillar to the `destroy_icon` function, but destroys all icons in the buffer.
+*/
 void GUIROP::clear_icon_buffer() {
   for(uint8_t i = 0; i < 8; i++) {
     icon_buffer[i] = NULL;
@@ -584,8 +611,8 @@ void GUIROP::clear_icon_buffer() {
 /**
  * Inerts the icon into the lcds custom character register and sets a reference of used icons in the `icon_buffer` array.
  * 
- * @param icon icon id to create
- * @param address the index in the lcd register and `icon_buffer` array
+ * @param icon Icon id to create
+ * @param address The index in the lcd register and `icon_buffer` array
 */
 void GUIROP::create_icon(uint8_t icon, uint8_t address) {
   icon_buffer[address] = icon;
@@ -597,9 +624,10 @@ void GUIROP::create_icon(uint8_t icon, uint8_t address) {
 /**
  * Destroys the reference of an icon in the `icon_buffer` array.
  * 
+ * Simillar to the `clear_icon_buffer` function, but destroys the first icon instance of the provided id in the buffer.
  * @note This does not delete the icon from the lcd custom character register. Using and address not refferenced in the `icon_buffer` may result in past icon being shown.
  * 
- * @param icon icon to be destoryed
+ * @param icon Icon to be destroyed
 */
 void GUIROP::destroy_icon(uint8_t icon) {
   for(uint8_t i = 0; i < 8; i++) {
@@ -616,8 +644,8 @@ void GUIROP::destroy_icon(uint8_t icon) {
  * 
  * @note For reverting the icon to the original state, see GUIROP::restore_icon(uint8_t icon).
  * 
- * @param icon icon id to negate
- * @returns If the icon is in buffer and has been negated.
+ * @param icon Icon id to negate
+ * @returns If the icon is in buffer and has been negated
 */
 bool GUIROP::negate_icon(uint8_t icon) {
   for(uint8_t i = 0; i < 8; i++) {
@@ -635,12 +663,12 @@ bool GUIROP::negate_icon(uint8_t icon) {
 }
 
 /**
- * Reverts the icon to its original value (reverts invertion)
+ * Reverts the icon to its original value (reverts invertion).
  * The icon must already be in the icon buffer for it to be restored.
  * 
  * @note For inverting the icon see GUIROP::negate_icon(uint8_t icon).
  * 
- * @param icon icon id to restore
+ * @param icon Icon id to restore
  * @returns If the icon is in buffer and has been restored
 */
 bool GUIROP::restore_icon(uint8_t icon) {
@@ -671,8 +699,8 @@ void GUIROP::delete_char_at(uint8_t column, uint8_t row) {
  * 
  * @note Serves as a way to save memory, saving custom characters in flash memory instead.
  * 
- * @param icon predifined icon id
- * @return A pointer to the character array location.
+ * @param icon Predifined icon id
+ * @return A pointer to the character array location
 */
 uint8_t* GUIROP::fetch_icon(uint8_t icon) {
   switch(icon) {
@@ -770,7 +798,7 @@ uint8_t* GUIROP::fetch_icon(uint8_t icon) {
 /**
  * Plays a melody from a predifined list.
  * 
- * @param sound_id the melody id
+ * @param sound_id The melody id
 */
 void GUIROP::play_sound(uint8_t sound_id) {
   switch(sound_id) {
@@ -812,9 +840,9 @@ void GUIROP::play_sound(uint8_t sound_id) {
 /**
  * Shows a temporary message on the lcd.
  * 
- * @param message a string containing the message
- * @param timeout how long a message is dissplayed in milliseconds
- * @return If has been successfuly shown (not yet implemented, always true).
+ * @param message A string containing the message
+ * @param timeout How long a message is dissplayed in milliseconds
+ * @return If has been successfuly shown (not yet implemented, always true)
 */
 bool GUIROP::show_toast(char* message, uint16_t timeout) {
   toast_timer = millis() + (timeout == 0 ? TOAST_DEFAULT_TIMEOUT : timeout);
@@ -827,8 +855,8 @@ bool GUIROP::show_toast(char* message, uint16_t timeout) {
 /**
  * Informs if the state maneger is awaiting authorization from the user, this function is to be used outside of this library.
  * 
- * @param authority_requirement an address to be set with the minimal authority level required.
- * @returns If the state maneger is awaiting authorization from the user.
+ * @param authority_requirement An address to be set with the minimal authority level required
+ * @returns If the state maneger is awaiting authorization from the user
 */
 bool GUIROP::require_authorization(uint8_t* authority_requirement) {
   *authority_requirement = authority_request;
@@ -839,7 +867,7 @@ bool GUIROP::require_authorization(uint8_t* authority_requirement) {
  * Sets a bool value for the `HOME_SCREEN` state when the relay is activated to inform the user on the lcd.
  * 
  * @deprecated This needs a better solution.
- * @param is_on the state of the relay
+ * @param is_on The state of the relay
 */
 void GUIROP::set_operation(bool is_on) {
   _is_on = is_on;

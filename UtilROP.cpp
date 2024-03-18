@@ -9,6 +9,18 @@
 #include "Arduino.h"
 #include "UtilROP.h"
 
+/**
+ * Converts some of the special uft8 encoded characters into their primitive forms.
+ * 
+ * One of the use cases is displaing a foreign name on an lcd that does not support uft8 characters.
+ * 
+ * Example:
+ * `de_accent_utf8("Tomáš", 5) => "Tomas"`
+ * 
+ * @param text The input string to be converted
+ * @param length The length of the `text` string
+ * @return A new converted string
+*/
 char* UtilROP::de_accent_utf8(char* text, uint8_t length){
   char* out = new char[length];
   char control = 0;
@@ -102,6 +114,13 @@ char* UtilROP::de_accent_utf8(char* text, uint8_t length){
   return out;
 }
 
+/**
+ * Appends spaces after a string to a desired length
+ * 
+ * @param text The input string
+ * @param length The desired length
+ * @returns The original string with some space appended int to the desired length
+*/
 char* UtilROP::fill_space(char* text, uint8_t length){
   char* output = new char[length];
   for(int i = 0; i < length; i++){

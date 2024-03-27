@@ -70,11 +70,12 @@ void setup() {
   Serial.begin(SERIAL_BAUD);  // debug console
   rfid_serial.begin(RFID_BAUD, SERIAL_8N1);
   lcd.init();
-
   Wire.begin();
   rtc.begin();
   dataStore.begin(SDCARD_CS, &rtc);
   gui.begin(&lcd, &rtc, &dataStore, BUZZER_PIN);
+
+  //rtc.adjust(DateTime(__DATE__, __TIME__));
 
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(RELAY_PIN, OUTPUT);

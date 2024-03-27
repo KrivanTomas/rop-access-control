@@ -75,7 +75,7 @@ bool RFIDROP::read_token_from_uart(HardwareSerial* use_serial, uint8_t* token, u
 */
 bool RFIDROP::discard_frag(HardwareSerial* use_serial, bool* do_discard, unsigned long* last_read, unsigned long discard_duration) {
   if(!*do_discard) return true;
-  if(millis() - *last_read >= void_duration) {
+  if(millis() - *last_read >= discard_duration) {
     *do_discard = false;
     return true;
   } 

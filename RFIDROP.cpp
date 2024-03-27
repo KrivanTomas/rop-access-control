@@ -69,7 +69,7 @@ bool RFIDROP::read_token_from_uart(HardwareSerial* use_serial, uint8_t* token, u
  * 
  * @param use_serial A pointer to the `HardwareSerial` object from which to communicate via UART
  * @param do_discard A pointer to a helper boolean variable that latches the discarding state
- * @param last_read A pointer to a millisecond time value of the last read (this is updated when UART is still avaliable)
+ * @param last_read A pointer to a millisecond time value of the last read (this is updated when UART is still available)
  * @param discard_duration Duration in millisecons from `last_read` when the discarding will be disabled
  * @returns A contol boolean to be used in an if statement with the `read_token_from_uart` function (see example)
 */

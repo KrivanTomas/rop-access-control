@@ -266,7 +266,7 @@ void GUIROP::update() {
           _lcd->setCursor(13, 0);
           _lcd->printf("%c%02u", b_cache1 ? ':' : ' ', now.minute());
         }
-        else{
+        else {
           _lcd->setCursor(13, 0);
           _lcd->print(b_cache1 ? ":" : " ");
         }

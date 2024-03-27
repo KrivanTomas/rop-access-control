@@ -21,12 +21,12 @@
 #define ABOUT       0x06
 #define SD_DATA     0x07
 #define WIRELESS_DATA 0x08
-#define TOAST  0x09
+#define TOAST       0x09
 #define TEXT_EDIT   0x0A
-#define AUTHORIZATION   0x0B
-#define USERS_LIST 0x0C
-#define USERS_MENU 0x0D
-#define ADD_USER 0x0E
+#define AUTHORIZATION 0x0B
+#define USERS_LIST  0x0C
+#define USERS_MENU  0x0D
+#define ADD_USER    0x0E
 
 #define SOUND_ERROR 0x01
 #define SOUND_COMPLETE 0x02
